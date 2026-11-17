@@ -1,0 +1,4 @@
+out/
+node_modules/
+screenshots/report.json
+screenshots/*.tmp.png

@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0d14">
+<title>Last Dawn — Hold the Kingdom</title>
+<style>
+  :root {
+    --ink: #e8eef7;
+    --dim: #8fa3bd;
+    --gold: #f0b429;
+    --blood: #d9534f;
+    --leaf: #4caf7d;
+    --panel: rgba(10, 14, 22, 0.92);
+    --edge: rgba(120, 160, 210, 0.28);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: #05070b; color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none; user-select: none;
+  }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  /* ---- HUD ---- */
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: 8px 10px 0; display: flex; flex-direction: column; gap: 6px;
+    pointer-events: none; font-variant-numeric: tabular-nums;
+  }
+  #hudTop { display: flex; align-items: center; gap: 8px; }
+  .chip {
+    background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
+    padding: 5px 9px; font-size: 13px; font-weight: 600; line-height: 1;
+    display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  }
+  .chip small { color: var(--dim); font-weight: 500; font-size: 11px; }
+  #hpChip { color: #ff8a85; }
+  #castleChip { color: var(--gold); }
+  #clockChip { color: #9fd3ff; }
+  .spacer { flex: 1; }
+  #res { display: flex; gap: 5px; flex-wrap: wrap; }
+  .res {
+    background: rgba(8, 12, 19, 0.78); border: 1px solid rgba(120,160,210,0.18);
+    border-radius: 7px; padding: 4px 7px; font-size: 12px; font-weight: 600;
+    display: flex; align-items: center; gap: 4px; min-width: 0;
+  }
+  .res b { color: var(--ink); }
+  .res .ico { font-size: 13px; line-height: 1; }
+
+  /* ---- side panel: build + crafting ---- */
+  #side {
+    position: fixed; right: 0; bottom: 0; width: min(320px, 62vw);
+    max-height: min(58vh, 520px); background: var(--panel);
+    border-left: 1px solid var(--edge); border-top: 1px solid var(--edge);
+    border-top-left-radius: 14px; display: flex; flex-direction: column;
+    transform: translateY(0); transition: transform 0.22s ease;
+    padding-bottom: var(--safe-b); z-index: 6;
+  }
+  #side.collapsed { transform: translateY(calc(100% - 42px)); }
+  #sideBar {
+    height: 42px; display: flex; align-items: center; gap: 6px;
+    padding: 0 8px 0 12px; cursor: pointer; flex-shrink: 0;
+    border-bottom: 1px solid rgba(120,160,210,0.14);
+  }
+  #sideBar h2 { margin: 0; font-size: 13px; letter-spacing: 0.4px; text-transform: uppercase; color: var(--dim); }
+  #sideBar .grip { margin-left: auto; font-size: 15px; color: var(--dim); }
+  #sideBody { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px; }
+  .sec { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--dim); margin: 6px 2px 5px; }
+  .item {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(120,160,210,0.14);
+    border-radius: 9px; padding: 7px 9px; margin-bottom: 5px; color: var(--ink);
+    font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+  }
+  .item:active { transform: scale(0.985); }
+  .item[disabled] { opacity: 0.4; cursor: not-allowed; }
+  .item.active { border-color: var(--gold); background: rgba(240,180,41,0.12); }
+  .item .n { font-weight: 600; }
+  .item .ico { flex: 0 0 18px; font-size: 15px; line-height: 1; text-align: center; }
+  .item .c {
+    margin-left: auto; font-size: 11px; color: var(--dim); text-align: right;
+    line-height: 1.3; display: flex; flex-direction: column; align-items: flex-end;
+    gap: 1px; white-space: nowrap; flex: 0 0 auto;
+  }
+  .item .c .cost { display: block; }
+  .item .c small { font-size: 10px; opacity: 0.8; display: block; }
+  .item .c.ook { color: var(--leaf); }
+  .item .c.no { color: #e07a76; }
+
+  /* ---- mobile controls ---- */
+  #stick {
+    position: fixed; left: 14px; bottom: calc(14px + var(--safe-b));
+    width: 116px; height: 116px; border-radius: 50%;
+    background: rgba(18, 26, 38, 0.55); border: 1px solid rgba(120,160,210,0.22);
+    z-index: 5; display: none; touch-action: none;
+  }
+  #knob {
+    position: absolute; left: 50%; top: 50%; width: 48px; height: 48px;
+    margin: -24px 0 0 -24px; border-radius: 50%;
+    background: rgba(160, 200, 245, 0.5); border: 1px solid rgba(200,225,255,0.5);
+  }
+  #actions {
+    position: fixed; right: 14px; bottom: calc(14px + var(--safe-b));
+    display: none; flex-direction: column; gap: 9px; z-index: 5;
+  }
+  .abtn {
+    width: 62px; height: 62px; border-radius: 50%; font: inherit; font-size: 11px;
+    font-weight: 700; letter-spacing: 0.3px; color: var(--ink);
+    background: rgba(24, 34, 50, 0.78); border: 1px solid rgba(120,160,210,0.3);
+  }
+  .abtn:active { background: rgba(240,180,41,0.3); }
+  #btnHit { width: 74px; height: 74px; font-size: 13px; border-color: rgba(217,83,79,0.6); }
+
+  /* ---- overlays ---- */
+  .screen {
+    position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; padding: 22px;
+    background: radial-gradient(ellipse at 50% 30%, rgba(30,45,70,0.9), rgba(4,6,10,0.97) 70%);
+    text-align: center;
+  }
+  .screen[hidden] { display: none; }
+  .screen h1 { margin: 0; font-size: clamp(26px, 7vw, 46px); letter-spacing: -0.5px; line-height: 1.1; }
+  .screen h1 span { color: var(--gold); }
+  .screen p { margin: 0; max-width: 34ch; color: var(--dim); font-size: 14px; line-height: 1.55; }
+  .btn {
+    font: inherit; font-size: 15px; font-weight: 700; padding: 12px 26px;
+    border-radius: 10px; border: 1px solid rgba(240,180,41,0.55);
+    background: linear-gradient(180deg, rgba(240,180,41,0.22), rgba(240,180,41,0.08));
+    color: #ffe9b8; cursor: pointer; min-width: 180px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost { border-color: var(--edge); background: rgba(255,255,255,0.04); color: var(--ink); }
+  #keys { font-size: 12px; color: var(--dim); line-height: 1.7; }
+  #keys kbd {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(120,160,210,0.25);
+    border-radius: 4px; padding: 1px 5px; font-family: inherit; font-size: 11px;
+  }
+  #stats { font-size: 14px; color: var(--dim); line-height: 1.9; font-variant-numeric: tabular-nums; }
+  #stats b { color: var(--ink); }
+  #sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* ---- responsive ---- */
+  @media (pointer: coarse), (max-width: 820px) {
+    #stick, #actions { display: flex; }
+    #stick { display: block; }
+    #side { width: min(300px, 56vw); max-height: 46vh; }
+    #res .res { font-size: 11px; padding: 3px 6px; }
+    .chip { font-size: 12px; padding: 4px 7px; }
+  }
+  @media (max-width: 520px) {
+    #side { width: 100%; max-height: 42vh; border-top-left-radius: 16px; border-left: none; }
+    #side.collapsed { transform: translateY(calc(100% - 40px)); }
+    .chip small { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="view" aria-label="Last Dawn: a 3D kingdom defense game. Gather wood, stone and iron by day, craft defenses, and survive the night waves."></canvas>
+
+<div id="hud">
+  <div id="hudTop">
+    <div class="chip" id="hpChip">❤ <span id="hpVal">100</span></div>
+    <div class="chip" id="castleChip">🏰 <span id="castleVal">1000</span></div>
+    <div class="chip" id="clockChip">☀ <span id="clockVal">Day 1</span></div>
+    <div class="spacer"></div>
+    <div class="res" id="res" aria-live="off"></div>
+  </div>
+</div>
+
+<aside id="side">
+  <div id="sideBar"><h2 id="sideTitle">Build</h2><span class="grip">▾</span></div>
+  <div id="sideBody"></div>
+</aside>
+
+<div id="stick"><div id="knob"></div></div>
+<div id="actions">
+  <button class="abtn" id="btnHit">HIT</button>
+  <button class="abtn" id="btnBuild">BUILD</button>
+</div>
+
+<section class="screen" id="title">
+  <h1>Last <span>Dawn</span><br>Hold the Kingdom</h1>
+  <p>Gather by daylight. Build walls, hire archers, sharpen blades. When the sun dies, the dark comes hungry.</p>
+  <button class="btn" id="btnStart">Begin the Watch</button>
+  <div id="keys">
+    <kbd>WASD</kbd> move · <kbd>E</kbd> gather · <kbd>F</kbd> strike · <kbd>B</kbd> build · <kbd>Esc</kbd> pause
+  </div>
+</section>
+
+<section class="screen" id="over" hidden>
+  <h1 id="overTitle">The Kingdom Fell</h1>
+  <div id="stats"></div>
+  <button class="btn" id="btnRetry">Try Again</button>
+</section>
+
+<section class="screen" id="paused" hidden>
+  <h1>Paused</h1>
+  <p>The kingdom holds its breath.</p>
+  <button class="btn" id="btnResume">Resume</button>
+</section>
+
+<p id="sr" role="status" aria-live="polite"></p>
+
+<script src="./vendor/three.min.js"></script>
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
