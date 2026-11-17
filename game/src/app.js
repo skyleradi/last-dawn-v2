@@ -5,7 +5,7 @@ import { Renderer } from './render.js';
 import { Simulation } from './gameplay.js';
 import { UI } from './ui.js';
 import { newGame, placeBuilding, craft, pushLog, beginNight, spawnWave } from './state.js';
-import { DAY } from './config.js';
+import { DAY, PLAYER } from './config.js';
 
 const canvas = document.getElementById('view');
 const world = new World(canvas);
@@ -215,8 +215,14 @@ stick.addEventListener('touchcancel', stickEnd, { passive: false });
 
 const btnHit = document.getElementById('btnHit');
 btnHit.addEventListener('touchstart', (e) => {
+  // One button for both jobs: strike an enemy if one is in reach, otherwise
+  // harvest the nearest resource node. Phones have no keyboard, so this is the
+  // only way to gather — without the fallback the economy is unreachable on
+  // mobile.
   input.attack = true;
-  setTimeout(() => { input.attack = false; }, 110);
+  const enemyNear = sim.nearestEnemy(PLAYER.attackRange);
+  if (!enemyNear) input.gather = true;
+  setTimeout(() => { input.attack = false; input.gather = false; }, 110);
   e.preventDefault();
 }, { passive: false });
 

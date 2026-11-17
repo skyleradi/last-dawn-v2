@@ -214,7 +214,9 @@ report.nightSetup = await evaluate(`(() => {
 await sleep(1600);
 report.night = shrink(await shot('4-night'));
 
-writeFileSync(`${OUT}/report.json`, JSON.stringify({ report, logs }, null, 2));
+// Keep the report OUT of the screenshots folder: the bundler treats every file
+// in there as a screenshot and rejects the dossier when the count exceeds the cap.
+writeFileSync(`${OUT}/../shots-report.json`, JSON.stringify({ report, logs }, null, 2));
 console.log(JSON.stringify({ report, logs: logs.slice(0, 40) }, null, 2));
 
 ws.close();
