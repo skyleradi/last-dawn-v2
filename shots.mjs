@@ -1,9 +1,9 @@
-// shots.mjs — capture real screenshots of the game via Chrome DevTools Protocol.
-// No npm deps: spawns headless Chrome with SwiftShader so WebGL works without a GPU.
+// shots.mjs — capture real screenshots of LAST DAWN via the Chrome DevTools
+// Protocol (no npm deps: headless Chrome + SwiftShader for headless WebGL).
+// Four shots: 1 title (cover), 2 day gathering, 3 night combat, 4 victory.
 
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, rmSync, existsSync, statSync, renameSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const URL_GAME = process.env.SHOT_URL || 'http://127.0.0.1:8288/index.html';
@@ -11,39 +11,25 @@ const OUT = process.env.SHOT_OUT || 'screenshots';
 const PROFILE = '/tmp/ld2-shots-profile';
 const CHROME = process.env.CHROME_BIN || 'google-chrome';
 
-const W = 1280;
-const H = 760;
+const W = 1280, H = 760;
 
 if (existsSync(PROFILE)) rmSync(PROFILE, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
-const args = [
-  '--headless=new',
-  `--remote-debugging-port=9333`,
-  `--user-data-dir=${PROFILE}`,
-  '--no-sandbox',
-  '--disable-dev-shm-usage',
-  '--hide-scrollbars',
-  '--mute-audio',
-  '--use-gl=angle',
-  '--use-angle=swiftshader',
-  '--enable-unsafe-swiftshader',
-  '--enable-webgl',
-  `--window-size=${W},${H}`,
-  'about:blank',
-];
-
-const chrome = spawn(CHROME, args, { stdio: 'ignore' });
+const chrome = spawn(CHROME, [
+  '--headless=new', '--remote-debugging-port=9333', `--user-data-dir=${PROFILE}`,
+  '--no-sandbox', '--disable-dev-shm-usage', '--hide-scrollbars', '--mute-audio',
+  '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--enable-webgl',
+  `--window-size=${W},${H}`, 'about:blank',
+], { stdio: 'ignore' });
 
 async function getWsUrl() {
-  for (let i = 0; i < 60; i += 1) {
+  for (let i = 0; i < 60; i++) {
     try {
       const r = await fetch('http://127.0.0.1:9333/json/version');
       const j = await r.json();
       if (j.webSocketDebuggerUrl) return j.webSocketDebuggerUrl;
-    } catch {
-      /* not up yet */
-    }
+    } catch { /* not up yet */ }
     await sleep(250);
   }
   throw new Error('chrome devtools never came up');
@@ -58,23 +44,25 @@ await new Promise((res, rej) => {
 
 let msgId = 0;
 const pending = new Map();
-const listeners = [];
-
+const logs = [];
 ws.addEventListener('message', (ev) => {
   const data = JSON.parse(ev.data);
   if (data.id && pending.has(data.id)) {
     const { res, rej } = pending.get(data.id);
     pending.delete(data.id);
-    if (data.error) rej(new Error(JSON.stringify(data.error)));
-    else res(data.result);
+    data.error ? rej(new Error(JSON.stringify(data.error))) : res(data.result);
     return;
   }
-  for (const l of listeners) l(data);
+  if (data.method === 'Runtime.exceptionThrown') {
+    logs.push('[EXCEPTION] ' + (data.params.exceptionDetails.exception?.description || data.params.exceptionDetails.text));
+  }
+  if (data.method === 'Log.entryAdded' && (data.params.entry.level === 'error')) {
+    logs.push('[log.error] ' + data.params.entry.text);
+  }
 });
 
 function send(method, params, sessionId) {
-  msgId += 1;
-  const id = msgId;
+  msgId += 1; const id = msgId;
   return new Promise((res, rej) => {
     pending.set(id, { res, rej });
     ws.send(JSON.stringify({ id, method, params: params || {}, sessionId }));
@@ -83,41 +71,17 @@ function send(method, params, sessionId) {
 
 const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
 const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
-
-const logs = [];
-listeners.push((d) => {
-  if (d.method === 'Runtime.consoleAPICalled') {
-    const text = (d.params.args || []).map((a) => a.value ?? a.description ?? '').join(' ');
-    logs.push(`[${d.params.type}] ${text}`);
-  }
-  if (d.method === 'Runtime.exceptionThrown') {
-    const ex = d.params.exceptionDetails;
-    logs.push(`[EXCEPTION] ${ex.text} ${ex.exception?.description || ''}`);
-  }
-  if (d.method === 'Log.entryAdded') {
-    logs.push(`[log:${d.params.entry.level}] ${d.params.entry.text}`);
-  }
-});
-
 await send('Runtime.enable', {}, sessionId);
 await send('Log.enable', {}, sessionId);
 await send('Page.enable', {}, sessionId);
-await send('Emulation.setDeviceMetricsOverride', {
-  width: W, height: H, deviceScaleFactor: 1, mobile: false,
-}, sessionId);
+await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false }, sessionId);
 
 await send('Page.navigate', { url: URL_GAME }, sessionId);
-await sleep(3200);
+await sleep(3600);
 
 async function evaluate(expression) {
-  const r = await send('Runtime.evaluate', {
-    expression,
-    awaitPromise: true,
-    returnByValue: true,
-  }, sessionId);
-  if (r.exceptionDetails) {
-    throw new Error(r.exceptionDetails.text + ' ' + (r.exceptionDetails.exception?.description || ''));
-  }
+  const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId);
+  if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
   return r.result.value;
 }
 
@@ -128,8 +92,6 @@ async function shot(name) {
   return file;
 }
 
-// Entries cap screenshots at 256KB; the title screen's gradient noise can exceed
-// that, so re-encode losslessly-ish (256 colour palette) when we go over.
 function shrink(file, cap = 245760) {
   const { size } = statSync(file);
   if (size <= cap) return { file, size, shrunk: false };
@@ -147,78 +109,62 @@ im.quantize(colors=256, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG).sav
 
 const report = {};
 
-// ---- 1. title screen ----
+// ---- 1. title screen (cover) ----
 report.title = shrink(await shot('1-title'));
 
-// ---- 2. start game, day gathering ----
-await evaluate(`document.getElementById('btnStart').click(); true`);
-await sleep(1400);
-
-report.stateAfterStart = await evaluate(`(() => {
-  const c = document.getElementById('clockVal').textContent;
-  return { clock: c, hp: document.getElementById('hpVal').textContent };
-})()`);
-
-// move a bit so the camera settles and the player is mid-field
+// ---- 2. start game, frame the player near the ember among trees ----
+await evaluate(`window.__lastDawn.begin(); true`);
+await sleep(1200);
 await evaluate(`(() => {
-  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
+  const D = window.__lastDawn.debug;
+  D.player.state.x = 2.5; D.player.state.z = 4.5;
+  D.renderer.cam.yaw = Math.PI * 0.55;
+  D.renderer.cam.dist = 15;
+  D.renderer.cam.pitch = 0.72;
+  D.give('wood', 10); D.give('stone', 8); D.give('essence', 5);
+  D.ui.setResources(D.G.resources.wood, D.G.resources.stone, D.G.resources.essence);
   return true;
 })()`);
-await sleep(900);
-await evaluate(`(() => {
-  window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
-  return true;
-})()`);
-await sleep(500);
-
+await sleep(1000);
 report.day = shrink(await shot('2-gathering'));
 
-// ---- 3. crafting panel: give materials, switch to the craft tab, craft a plank ----
+// ---- 3. night combat: defensive line, ember behind, dusk closing in ----
 await evaluate(`(() => {
-  const s = window.__ld.state.store;
-  s.wood = 42; s.stone = 27; s.iron = 14; s.plank = 9; s.food = 18;
-  window.__ld.ui.setTab('craft');
-  window.__ld.ui.renderPanel();
-  window.__ld.ui.renderHud();
+  const D = window.__lastDawn.debug;
+  D.forceNight();
+  // defensive line north of the player
+  D.buildings.placeBuild('wall', 0, 4);
+  D.buildings.placeBuild('wall', 2.4, 3.4);
+  D.buildings.placeBuild('wall', -2.4, 3.4);
+  D.buildings.placeBuild('tower', 0, 6.2);
+  D.player.state.x = 0; D.player.state.z = 8.2;
+  D.renderer.cam.yaw = 0.0;
+  D.renderer.cam.dist = 16;
+  D.renderer.cam.pitch = 0.68;
+  // large dusk in the foreground (south, near camera), small far behind the ember
+  const fore = [
+    ['brute', 0, 13.5], ['crawler', -8, 12.5], ['crawler', 8, 12.5],
+    ['runner', -4, 13.5], ['runner', 4, 13.5], ['crawler', -6.5, 11], ['crawler', 6.5, 11],
+  ];
+  const back = [
+    ['crawler', -4, -7], ['crawler', 4, -7], ['wisp', 0, -5.5], ['runner', -2.5, -8], ['runner', 2.5, -8],
+  ];
+  fore.forEach(([k, x, z]) => D.spawn(k, x, z));
+  back.forEach(([k, x, z]) => D.spawn(k, x, z));
+  D.ui.setPhase('night', 'Night 3 / 7', 'Night');
+  D.ui.setScore(14230);
   return true;
 })()`);
-await sleep(500);
-await evaluate(`(() => {
-  const btn = document.querySelector('[data-craft="plank"]');
-  if (btn) btn.click();
-  return true;
-})()`);
-await sleep(700);
-report.crafting = shrink(await shot('3-crafting'));
+await sleep(800);
+report.night = shrink(await shot('3-night'));
 
-// ---- 4. night with a live wave closing in on the castle ----
-report.nightSetup = await evaluate(`(() => {
-  const D = window.__ld;
-  D.test.skipToNight();
-  D.state.player.x = 0;
-  D.state.player.z = 11;
-  D.state.player.hp = 78;
-  for (let i = 0; i < 2; i++) D.test.spawnWaveNow();
-  // arrange raiders in a readable ring approaching the wall
-  D.state.enemies.forEach((e, i) => {
-    const a = (i / Math.max(1, D.state.enemies.length)) * Math.PI * 2;
-    const r = 15 + (i % 3) * 1.8;
-    e.x = Math.cos(a) * r;
-    e.z = Math.sin(a) * r + 9;
-  });
-  D.ui.renderHud();
-  D.ui.renderPanel();
-  return { enemies: D.state.enemies.length, phase: D.state.phase };
-})()`);
+// ---- 4. victory screen ----
+await evaluate(`window.__lastDawn.debug.forceWin(); true`);
+await sleep(600);
+report.victory = shrink(await shot('4-victory'));
 
-await sleep(1600);
-report.night = shrink(await shot('4-night'));
-
-// Keep the report OUT of the screenshots folder: the bundler treats every file
-// in there as a screenshot and rejects the dossier when the count exceeds the cap.
 writeFileSync(`${OUT}/../shots-report.json`, JSON.stringify({ report, logs }, null, 2));
-console.log(JSON.stringify({ report, logs: logs.slice(0, 40) }, null, 2));
+console.log(JSON.stringify({ report, logs: logs.slice(0, 30) }, null, 2));
 
-ws.close();
-chrome.kill('SIGTERM');
-await sleep(400);
+ws.close(); chrome.kill('SIGTERM');
+await sleep(300);

@@ -1,171 +1,106 @@
-// config.js — every tunable number of Last Dawn in one place.
-// Kept apart from the systems so balance can be read without reading code.
+// LAST DAWN — tuning hub. Every balance number lives here so the game
+// stays readable and the difficulty curve is one edit away.
+export const CONFIG = {
+  // World layout
+  world: {
+    islandRadius: 23,        // walkable radius around the ember (world units)
+    shoreDrop: 3.5,          // height of the cliff dropping to the void below
+    emberX: 0, emberZ: 0,
+    treeCount: 16,
+    rockCount: 12,
+    shardCount: 8,           // essence glowshards (rare offensive resource)
+  },
 
-export const WORLD = {
-  groundRadius: 46,
-  playRadius: 42,
-  treeCount: 96,
-  rockCount: 54,
-  ironCount: 20,
-  bushCount: 44,
-  wallRadius: 7.2,
-  castleRadius: 3.4,
+  // Player
+  player: {
+    speed: 9.5,
+    radius: 0.65,
+    maxHp: 100,
+    swingRange: 2.6,         // how far the slash reaches
+    swingArc: Math.PI * 0.85,
+    swordDamage: 34,
+    swingCooldown: 0.38,     // seconds between slashes
+    swingArcTime: 0.18,      // seconds the arc is "active"
+    harvestRange: 2.3,
+    harvestTime: 0.55,       // seconds per harvest tick
+    healRate: 1.2,           // hp/s regenerated while inside a beacon
+  },
+
+  // Resources (what each node yields per tick)
+  nodes: {
+    tree:     { wood: 3,                      respawn: 14 },
+    rock:     { stone: 3,                     respawn: 14 },
+    shard:    { essence: 2,                   respawn: 22 },
+  },
+
+  // Buildings — cost and stats
+  buildings: {
+    wall: {
+      name: 'Wall', cost: { wood: 4,  stone: 2  }, hp: 130,
+      radius: 1.0, cell: true,  hotkey: '1', desc: 'Blocks the dusk',
+    },
+    tower: {
+      name: 'Watchtower', cost: { wood: 6, essence: 4 }, hp: 60,
+      radius: 0.9, range: 13, damage: 16, fireRate: 0.55,
+      hotkey: '2', projectileSpeed: 34, desc: 'Shoots the dusk',
+    },
+    beacon: {
+      name: 'Beacon', cost: { stone: 4, essence: 6 }, hp: 80,
+      radius: 1.1, aura: 6.5, heal: 3.5, slow: 0.42,
+      hotkey: '3', desc: 'Heals you, slows the dusk',
+    },
+  },
+
+  ember: {
+    x: 0, z: 0,             // the ember sits at the island centre
+    maxHp: 260,
+    radius: 1.5,
+    repairCost: 2,          // essence per repair tick
+    repairAmount: 30,
+    repairRange: 3.2,
+  },
+
+  // Day / night cycle
+  cycle: {
+    nightCount: 7,           // survive this many nights to win
+    daySeconds: 34,          // gathering window before dusk
+    nightSeconds: 26,        // each night's length
+    dawnWinSeconds: 5,       // celebration before the victory screen
+    startGrace: 3,           // seconds before the first day begins
+  },
+
+  // Waves — one entry per night, in order. Count and mix scale up.
+  waves: [
+    { spawns: 8,  types: ['crawler'],                               interval: 1.9 },
+    { spawns: 11, types: ['crawler', 'crawler', 'runner'],          interval: 1.7 },
+    { spawns: 14, types: ['crawler', 'runner', 'runner'],           interval: 1.5 },
+    { spawns: 16, types: ['crawler', 'runner', 'brute'],            interval: 1.3 },
+    { spawns: 19, types: ['runner', 'brute', 'wisp', 'crawler'],    interval: 1.1 },
+    { spawns: 22, types: ['runner', 'brute', 'wisp', 'brute'],      interval: 0.95 },
+    { spawns: 26, types: ['brute', 'wisp', 'runner', 'crawler'],    interval: 0.8 },
+  ],
+
+  // Enemy types (speed is world units / second)
+  enemies: {
+    crawler: { hp: 40,  speed: 2.3, damage: 8,  radius: 0.55, touchDps: 9,  score: 10, color: 0x6a5a8a },
+    runner:  { hp: 26,  speed: 4.4, damage: 6,  radius: 0.45, touchDps: 7,  score: 15, color: 0x8a4a6a },
+    brute:   { hp: 120, speed: 1.7, damage: 16, radius: 0.95, touchDps: 14, score: 30, color: 0x4a4468 },
+    wisp:    { hp: 22,  speed: 3.2, damage: 9,  radius: 0.5,  touchDps: 10, score: 25, color: 0x9a74cc, fly: true },
+  },
+
+  scoring: {
+    nightCleared: 1000,
+    enemyKill: 10,     // (overridden by per-type score field)
+    hpBonus: 1,        // points per remaining ember hp at victory
+  },
+
+  // Presentation knobs
+  fx: {
+    fogNear: 26, fogFar: 74,
+    emberGlowIntensity: 1.6,
+  },
 };
 
-export const CAMERA = {
-  height: 21,
-  distance: 19,
-  follow: 0.135,
-  lookAhead: 0.28,
-  fov: 52,
-  near: 0.5,
-  far: 220,
-};
-
-export const PLAYER = {
-  speed: 9.2,
-  radius: 0.55,
-  maxHp: 100,
-  regenPerSec: 0.9,
-  regenDelay: 5,
-  reach: 3.4,
-  attackRange: 3.0,
-  attackDamage: 24,
-  attackCooldown: 0.42,
-  hitKnockback: 1.9,
-};
-
-export const DAY = {
-  lengthSec: 96,
-  duskFadeSec: 6,
-  nightStartHour: 19,
-  dawnHour: 6,
-};
-
-export const GATHER = {
-  intervalSec: 0.62,
-  yields: {
-    tree: { wood: 1 },
-    rock: { stone: 1 },
-    ironNode: { iron: 1 },
-    bush: { food: 1 },
-  },
-  deplete: {
-    tree: 7,
-    rock: 6,
-    ironNode: 4,
-    bush: 5,
-  },
-  respawnSec: 42,
-};
-
-export const BUILDINGS = [
-  {
-    id: 'wall',
-    name: 'Stone Wall',
-    icon: '🧱',
-    cost: { stone: 6 },
-    hp: 220,
-    footprint: 1.15,
-    desc: 'Blocks a lane. Enemies must break it.',
-    key: '1',
-  },
-  {
-    id: 'tower',
-    name: 'Archer Tower',
-    icon: '🏹',
-    cost: { wood: 8, stone: 4 },
-    hp: 160,
-    footprint: 1.3,
-    range: 11,
-    damage: 9,
-    fireRate: 0.95,
-    desc: 'Fires arrows at the nearest raider.',
-    key: '2',
-  },
-  {
-    id: 'forge',
-    name: 'Forge',
-    icon: '🔥',
-    cost: { stone: 8, iron: 3 },
-    hp: 140,
-    footprint: 1.2,
-    buff: 0.28,
-    desc: '+28% melee damage while it stands.',
-    key: '3',
-  },
-  {
-    id: 'campfire',
-    name: 'Campfire',
-    icon: '🪵',
-    cost: { wood: 5, stone: 2 },
-    hp: 90,
-    footprint: 1.0,
-    heal: 2.4,
-    desc: 'Heals you nearby. Light keeps the dark off.',
-    key: '4',
-  },
-];
-
-export const RECIPES = [
-  {
-    id: 'plank',
-    name: 'Planks',
-    out: { plank: 2 },
-    cost: { wood: 3 },
-    unlockDay: 1,
-  },
-  {
-    id: 'stoneblock',
-    name: 'Cut Stone',
-    out: { cutStone: 1 },
-    cost: { stone: 3 },
-    unlockDay: 1,
-  },
-  {
-    id: 'ironsword',
-    name: 'Iron Blade',
-    out: { blade: 1 },
-    cost: { iron: 3, plank: 2 },
-    unlockDay: 2,
-    tool: 'blade',
-    toolLife: 26,
-  },
-  {
-    id: 'ironshield',
-    name: 'Iron Shield',
-    out: { shield: 1 },
-    cost: { iron: 4, cutStone: 2 },
-    unlockDay: 3,
-    armor: 0.18,
-  },
-  {
-    id: 'torch',
-    name: 'Torch',
-    out: { torch: 1 },
-    cost: { plank: 1, food: 1 },
-    unlockDay: 1,
-    light: true,
-  },
-];
-
-export const WAVES = {
-  firstNight: 1,
-  baseCount: 4,
-  countPerNight: 2.2,
-  baseHp: 42,
-  hpPerNight: 15,
-  baseSpeed: 2.5,
-  speedPerNight: 0.16,
-  damage: 7,
-  attackInterval: 1.05,
-  spawnRing: 34,
-  bossEvery: 4,
-};
-
-export const RENDER = {
-  shadowMapSize: 1024,
-  fogNear: 34,
-  fogFar: 108,
-  maxPixelRatio: 2,
-};
+// Convenience: a full wave plan is just CONFIG.waves (7 nights).
+export const waveFor = (nightIndex) =>
+  CONFIG.waves[Math.min(nightIndex, CONFIG.waves.length - 1)];

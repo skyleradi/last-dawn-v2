@@ -1,0 +1,25 @@
+{
+  "report": {
+    "title": {
+      "file": "screenshots/1-title.png",
+      "size": 154936,
+      "shrunk": true
+    },
+    "day": {
+      "file": "screenshots/2-gathering.png",
+      "size": 79756,
+      "shrunk": true
+    },
+    "night": {
+      "file": "screenshots/3-night.png",
+      "size": 84111,
+      "shrunk": true
+    },
+    "victory": {
+      "file": "screenshots/4-victory.png",
+      "size": 162371,
+      "shrunk": true
+    }
+  },
+  "logs": []
+}

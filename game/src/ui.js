@@ -1,193 +1,107 @@
-// ui.js — DOM layer: HUD chips, the build/craft side panel, and overlay screens.
-// Reads state; never mutates the simulation directly except through callbacks.
+// LAST DAWN — ui.js
+// DOM UI: HUD (phase, resources, score, health bars, build bar), the title
+// screen, the end screen, pause, toasts and the build-selection state.
+import { CONFIG } from './config.js';
 
-import {
-  BUILDINGS,
-  RECIPES,
-  DAY,
-} from './config.js';
-import {
-  RESOURCE_ICONS,
-  canAfford,
-  costText,
-  recipeUnlocked,
-  recipeAffordable,
-} from './state.js';
+export function createUI() {
+  const el = (id) => document.getElementById(id);
+  const hud = el('hud'), title = el('title'), end = el('end');
+  const phase = el('phase'), phaseLabel = el('phaselabel'), phaseValue = el('phasevalue');
+  const rWood = el('rwood'), rStone = el('rstone'), rEss = el('ressence');
+  const scoreVal = el('scoreval');
+  const emberFill = el('emberfill'), hpFill = el('hpfill'), hpLbl = el('hplbl');
+  const toast = el('toast'), buildHint = el('buildhint'), verdict = el('verdict');
+  const endSub = el('endsub'), endStats = el('endstats');
+  const startBtn = el('startbtn'), restartBtn = el('restartbtn');
+  const buildButtons = Array.from(document.querySelectorAll('.bb'));
 
-const $ = (id) => document.getElementById(id);
+  let selectedBuild = null;   // 'wall' | 'tower' | 'beacon' | null
+  let toastTimer = 0;
 
-export class UI {
-  constructor(state, handlers) {
-    this.state = state;
-    this.handlers = handlers;
+  function setPhase(kind, value, label) {
+    phase.className = 'box';
+    phase.classList.add(kind);
+    phaseValue.textContent = value;
+    if (label) phaseLabel.textContent = label;
+  }
+  function setResources(wood, stone, essence) {
+    rWood.textContent = wood; rStone.textContent = stone; rEss.textContent = essence;
+  }
+  function setScore(s) { scoreVal.textContent = s; }
+  function setEmberHp(hp) { emberFill.style.width = Math.max(0, 100 * hp / CONFIG.ember.maxHp) + '%'; }
+  function setPlayerHp(hp) {
+    hpFill.style.width = Math.max(0, 100 * hp / CONFIG.player.maxHp) + '%';
+    hpLbl.textContent = hp <= 0 ? 'Fallen' : 'Dawnkeeper';
+  }
 
-    this.el = {
-      hpVal: $('hpVal'),
-      castleVal: $('castleVal'),
-      clockVal: $('clockVal'),
-      res: $('res'),
-      side: $('side'),
-      sideBar: $('sideBar'),
-      sideBody: $('sideBody'),
-      sideTitle: $('sideTitle'),
-      sr: $('sr'),
-      over: $('over'),
-      overTitle: $('overTitle'),
-      stats: $('stats'),
-      paused: $('paused'),
-      title: $('title'),
-    };
+  function showToast(text, hold = 1.6) {
+    toast.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), hold * 1000);
+  }
 
-    this.tab = 'build';
-    this.lastRender = 0;
-    this.lastSignature = '';
+  function setBuildHint(text) { buildHint.textContent = text || ''; }
 
-    this.el.sideBar.addEventListener('click', () => {
-      this.el.side.classList.toggle('collapsed');
+  function selectBuild(kind) {
+    selectedBuild = kind;
+    buildButtons.forEach(b => {
+      b.classList.toggle('active', b.dataset.build === kind);
+      if (kind) {
+        const cost = costText(CONFIG.buildings[b.dataset.build].cost);
+        b.querySelector('.cost').textContent = cost;
+      }
     });
-
-    $('btnStart').addEventListener('click', () => this.handlers.start());
-    $('btnRetry').addEventListener('click', () => this.handlers.restart());
-    $('btnResume').addEventListener('click', () => this.handlers.resume());
+    document.getElementById('game').classList.toggle('building', !!kind);
+    setBuildHint(kind ? (CONFIG.buildings[kind].name + ' — click to place, right-click to cancel') : '');
   }
 
-  hideScreens() {
-    this.el.title.hidden = true;
-    this.el.over.hidden = true;
-    this.el.paused.hidden = true;
+  function costText(cost) {
+    const parts = [];
+    if (cost.wood) parts.push(cost.wood + 'w');
+    if (cost.stone) parts.push(cost.stone + 's');
+    if (cost.essence) parts.push(cost.essence + 'e');
+    return parts.join(' ');
   }
 
-  showPaused(show) {
-    this.el.paused.hidden = !show;
-  }
-
-  showGameOver(state) {
-    const won = state.victory;
-    this.el.overTitle.textContent = won ? 'The Dawn Holds' : 'The Kingdom Fell';
-    const s = state.stats;
-    this.el.stats.innerHTML = [
-      `Nights survived: <b>${s.nightsSurvived}</b>`,
-      `Raiders slain: <b>${s.kills}</b>`,
-      `Built: <b>${s.built}</b>`,
-      `Crafted: <b>${s.crafted}</b>`,
-      `Gathered: <b>${s.gathered}</b>`,
-    ].join('<br>');
-    this.el.over.hidden = false;
-  }
-
-  setTab(tab) {
-    if (this.tab === tab) {
-      this.el.side.classList.toggle('collapsed');
-      return;
-    }
-    this.tab = tab;
-    this.el.side.classList.remove('collapsed');
-    this.lastSignature = '';
-  }
-
-  announce(text) {
-    this.el.sr.textContent = text;
-  }
-
-  /** Coarse signature so we only rebuild panel DOM when something visible changed. */
-  signature() {
-    const st = this.state;
-    const inv = Object.keys(st.store)
-      .filter((k) => RESOURCE_ICONS[k])
-      .map((k) => `${k}:${Math.floor(st.store[k])}`)
-      .join(',');
-    return [
-      this.tab,
-      st.phase,
-      st.day,
-      st.selectedBuild,
-      inv,
-      st.player.shieldOn ? 'S' : '-',
-      st.player.bladeLife > 0 ? 'B' : '-',
-      Math.round(st.player.hp),
-      Math.round(st.castle.hp),
-    ].join('|');
-  }
-
-  renderHud() {
-    const st = this.state;
-    this.el.hpVal.textContent = String(Math.ceil(st.player.hp));
-    this.el.castleVal.textContent = String(Math.ceil(st.castle.hp));
-
-    const h = Math.floor(st.hour);
-    const m = Math.floor((st.hour - h) * 60);
-    const icon = st.phase === 'night' ? '🌙' : '☀';
-    const label = st.phase === 'night' ? 'Night' : 'Day';
-    this.el.clockVal.textContent = `${icon} ${label} ${st.day} · ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-
-    const keys = ['wood', 'stone', 'iron', 'food'];
-    let html = '';
-    for (const k of keys) {
-      html += `<div class="res"><span class="ico">${RESOURCE_ICONS[k]}</span><b>${Math.floor(st.store[k])}</b></div>`;
-    }
-    for (const k of ['plank', 'cutStone', 'blade', 'shield']) {
-      if (st.store[k] > 0) {
-        html += `<div class="res"><span class="ico">${RESOURCE_ICONS[k]}</span><b>${Math.floor(st.store[k])}</b></div>`;
-      }
-    }
-    this.el.res.innerHTML = html;
-  }
-
-  renderPanel() {
-    const st = this.state;
-    this.el.sideTitle.textContent = this.tab === 'build' ? 'Build' : 'Craft';
-    let html = '';
-
-    if (this.tab === 'build') {
-      html += `<div class="sec">Defenses ${st.phase === 'night' ? '· stonemasons asleep' : ''}</div>`;
-      for (const b of BUILDINGS) {
-        const afford = st.phase === 'day' && canAfford(st, b.cost);
-        const active = st.selectedBuild === b.id;
-        const cls = ['item'];
-        if (active) cls.push('active');
-        html += `<button class="${cls.join(' ')}" data-build="${b.id}" ${afford ? '' : 'disabled'}>
-          <span class="ico">${b.icon}</span>
-          <span class="n">${b.name}</span>
-          <span class="c ${afford ? 'ook' : 'no'}">${costText(b.cost)}<br><small>${b.key}</small></span>
-        </button>`;
-      }
-      if (st.phase === 'night') {
-        html += '<div class="sec">You can only build by daylight.</div>';
-      }
-    } else {
-      html += `<div class="sec">Workshop · day ${st.day}</div>`;
-      for (const r of RECIPES) {
-        const unlocked = recipeUnlocked(st, r);
-        const afford = recipeAffordable(st, r);
-        html += `<button class="item" data-craft="${r.id}" ${afford ? '' : 'disabled'}>
-          <span class="ico">${RESOURCE_ICONS[Object.keys(r.out)[0]] || '⚒'}</span>
-          <span class="n">${r.name}</span>
-          <span class="c ${afford ? 'ook' : 'no'}"><span class="cost">${costText(r.cost)}</span>${
-            unlocked ? '' : `<small>day ${r.unlockDay}</small>`
-          }</span>
-        </button>`;
-      }
-      if (st.player.bladeLife > 0) {
-        html += `<div class="sec">Iron Blade · ${st.player.bladeLife} strikes left</div>`;
-      }
-    }
-
-    this.el.sideBody.innerHTML = html;
-
-    this.el.sideBody.querySelectorAll('[data-build]').forEach((btn) => {
-      btn.addEventListener('click', () => this.handlers.selectBuild(btn.dataset.build));
-    });
-    this.el.sideBody.querySelectorAll('[data-craft]').forEach((btn) => {
-      btn.addEventListener('click', () => this.handlers.craft(btn.dataset.craft));
+  function refreshAffordability(resources) {
+    buildButtons.forEach(b => {
+      const cost = CONFIG.buildings[b.dataset.build].cost;
+      const ok = (cost.wood ?? 0) <= resources.wood &&
+                 (cost.stone ?? 0) <= resources.stone &&
+                 (cost.essence ?? 0) <= resources.essence;
+      b.classList.toggle('disabled', !ok);
     });
   }
 
-  tick(dt, force) {
-    this.renderHud();
-    const sig = this.signature();
-    if (force || sig !== this.lastSignature) {
-      this.lastSignature = sig;
-      this.renderPanel();
-    }
+  function showHud(on) { hud.style.display = on ? 'block' : 'none'; }
+  function showTitle(on) { title.style.display = on ? '' : 'none'; }
+  function showEnd(on) { end.style.display = on ? '' : 'none'; }
+
+  function showVictory(stats) {
+    verdict.textContent = 'DAWN BREAKS';
+    verdict.className = 'verdict win';
+    endSub.textContent = 'You held the last light';
+    endStats.innerHTML =
+      `Score <b>${stats.score}</b> &nbsp;·&nbsp; Nights <b>${stats.night}</b>/7` +
+      `<br>Kills <b>${stats.kills}</b> &nbsp;·&nbsp; Ember remaining <b>${stats.hp}%</b>`;
+    showEnd(true); showHud(false);
   }
+  function showDefeat(stats) {
+    verdict.textContent = 'THE EMBER DIES';
+    verdict.className = 'verdict lose';
+    endSub.textContent = 'The long night wins';
+    endStats.innerHTML =
+      `Score <b>${stats.score}</b> &nbsp;·&nbsp; Survived <b>${stats.night}</b>/7 nights` +
+      `<br>Kills <b>${stats.kills}</b>`;
+    showEnd(true); showHud(false);
+  }
+
+  return {
+    el, setPhase, setResources, setScore, setEmberHp, setPlayerHp,
+    showToast, setBuildHint, selectBuild, refreshAffordability,
+    showHud, showTitle, showEnd, showVictory, showDefeat,
+    get selectedBuild() { return selectedBuild; },
+    startBtn, restartBtn, buildButtons,
+  };
 }
