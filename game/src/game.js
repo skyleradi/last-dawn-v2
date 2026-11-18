@@ -154,7 +154,7 @@ export function createGame(canvas) {
     const pos = aimPos();
     const def = CONFIG.buildings[kind];
     // Placement validity
-    if (!validPlacement(kind, pos.x, pos.z)) { audio.hit(); return; }
+    if (!validPlacement(kind, pos.x, pos.z)) { audio.hit(); ui.showToast('Blocked — move farther from Emberheart or another structure', 1.4); ui.setBuildHint('Blocked placement · move the ghost to a clear island tile'); return; }
     if (!spend(def.cost)) { audio.hit(); ui.showToast('Not enough resources'); return; }
     const built=buildings.placeBuild(kind, pos.x, pos.z);
     built.maxHp= built.hp=def.hp*(1+crafting.levels.masonry*.5);
@@ -287,7 +287,8 @@ export function createGame(canvas) {
         }
       } else {
         // E also repairs the ember when close
-        doRepair();
+        const before = buildings.ember.hp; doRepair();
+        if (before === buildings.ember.hp) ui.showToast('No resource nearby — move toward a glowing node', .9);
       }
     }
 
@@ -338,6 +339,7 @@ export function createGame(canvas) {
 
     // ---- phase timers ----
     G.phaseT -= dt;
+    if (G.phase === 'day' && G.phaseT <= 10 && G.phaseT > 10-dt) ui.showToast('Dusk in 10s — gather, then fortify!', 2.2);
     if (G.phase === 'day') {
       if (G.phaseT <= 0) startNight();
     } else {
