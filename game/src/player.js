@@ -3,32 +3,14 @@
 // slash combat. Pure entity logic — no rendering of the scene itself beyond
 // its own mesh.
 import { CONFIG } from './config.js';
+import { knightModel } from './models.js';
 
 export function createPlayer(scene, THREE) {
   const P = CONFIG.player;
-  const group = new THREE.Group();
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd8d2c4, roughness: 0.5, metalness: 0.35 });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x5a4a55, roughness: 0.6, metalness: 0.5 });
-  const emberMat = new THREE.MeshStandardMaterial({ color: 0xff8c3a, emissive: 0xff6a1a, emissiveIntensity: 1.4 });
-
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.44, 0.95, 7), bodyMat);
-  body.position.y = 0.98;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), darkMat);
-  head.position.y = 1.78;
-  const crest = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.46, 0.09), emberMat);
-  crest.position.y = 2.08;
-  const sword = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 1.6), emberMat);
-  sword.position.set(0.62, 1.2, 0.36);
-  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.55, 8, 8),
-    new THREE.MeshBasicMaterial({ color: 0xffb066, transparent: true, opacity: 0.22 }));
-  glow.position.y = 1.0;
-  // ground marker ring so the player reads clearly from above
-  const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.5, 0.66, 24),
-    new THREE.MeshBasicMaterial({ color: 0x8aff9a, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
-  );
-  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04;
-  group.add(body, head, crest, sword, glow, ring);
+  const model = knightModel(THREE);
+  const group = model.g, sword = model.sword;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(.65,.73,24),new THREE.MeshBasicMaterial({color:0xe9c77b,side:THREE.DoubleSide,transparent:true,opacity:.65}));
+  ring.rotation.x=-Math.PI/2;ring.position.y=.04;group.add(ring);
   scene.add(group);
 
   const state = {
@@ -60,15 +42,16 @@ export function createPlayer(scene, THREE) {
       const speed = P.speed;
       const target = worldTarget;
 
-      faceTarget(state, target.aimX, target.aimZ);
+      if (!input.state.touch) faceTarget(state, target.aimX, target.aimZ);
 
       if (mv) {
         const cam = target.camYaw || 0;
         const sin = Math.sin(cam), cos = Math.cos(cam);
         // rotate movement by (camera yaw) so W is "away" on screen
         const wx = mv.x, wz = mv.z;
-        const rx = wx * cos - wz * sin;
-        const rz = wx * sin + wz * cos;
+        const rx = wx * cos + wz * sin;
+        const rz = -wx * sin + wz * cos;
+        if (input.state.touch) faceTarget(state, state.x + rx, state.z + rz);
         state.x += rx * speed * dt;
         state.z += rz * speed * dt;
       }
@@ -81,7 +64,10 @@ export function createPlayer(scene, THREE) {
       state.swingCd = Math.max(0, state.swingCd - dt);
       state.harvestCd = Math.max(0, state.harvestCd - dt);
       if (state.swingT >= 0) state.swingT -= dt;
-      if (state.swingT < 0) { state.swingT = -1; sword.rotation.x = -0.4; }
+      if (state.swingT < 0) state.swingT = -1;
+      sword.rotation.y = state.swingT >= 0 ? -1.5 + (1-state.swingT/P.swingArcTime)*3 : .15;
+      model.legs.forEach((leg,i)=>leg.rotation.x=mv?Math.sin(performance.now()*.014+i*Math.PI)*.65:0);
+      model.cape.rotation.x=-.17+(mv?Math.sin(performance.now()*.01)*.12:0);
 
       borderPenalty(dt);
       group.position.set(state.x, state.y + Math.sin(performance.now() * 0.008) * 0.03, state.z);
@@ -104,7 +90,7 @@ export function createPlayer(scene, THREE) {
 
   function faceTarget(s, tx, tz) {
     s.facing = Math.atan2(tx - s.x, tz - s.z);
-    group.rotation.y = s.facing - Math.PI / 2; // model faces +Z
+    group.rotation.y = s.facing; // model faces +Z
   }
 
   // If the player walks off the shore, gently nudge them back (soft border).

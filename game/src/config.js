@@ -9,6 +9,7 @@ export const CONFIG = {
     treeCount: 16,
     rockCount: 12,
     shardCount: 8,           // essence glowshards (rare offensive resource)
+    ironCount: 6,            // deep quarry deposits for advanced gear
   },
 
   // Player
@@ -28,9 +29,10 @@ export const CONFIG = {
 
   // Resources (what each node yields per tick)
   nodes: {
-    tree:     { wood: 3,                      respawn: 14 },
+    tree:     { wood: 3, fiber: 1,             respawn: 14 },
     rock:     { stone: 3,                     respawn: 14 },
     shard:    { essence: 2,                   respawn: 22 },
+    iron:     { iron: 2,                      respawn: 18 },
   },
 
   // Buildings — cost and stats
@@ -71,13 +73,13 @@ export const CONFIG = {
 
   // Waves — one entry per night, in order. Count and mix scale up.
   waves: [
-    { spawns: 8,  types: ['crawler'],                               interval: 1.9 },
-    { spawns: 11, types: ['crawler', 'crawler', 'runner'],          interval: 1.7 },
-    { spawns: 14, types: ['crawler', 'runner', 'runner'],           interval: 1.5 },
-    { spawns: 16, types: ['crawler', 'runner', 'brute'],            interval: 1.3 },
-    { spawns: 19, types: ['runner', 'brute', 'wisp', 'crawler'],    interval: 1.1 },
-    { spawns: 22, types: ['runner', 'brute', 'wisp', 'brute'],      interval: 0.95 },
-    { spawns: 26, types: ['brute', 'wisp', 'runner', 'crawler'],    interval: 0.8 },
+    { name:'The First Murmur', threat:'A probing line of crawlers', spawns:8, types:['crawler'], interval:1.9, speed:1 },
+    { name:'Red Sprint', threat:'Runners flank from the shore', spawns:11, types:['crawler','crawler','runner'], interval:1.7, speed:1.05 },
+    { name:'Pack Tide', threat:'Fast packs overwhelm isolated walls', spawns:14, types:['crawler','runner','runner'], interval:1.5, speed:1.1 },
+    { name:'Stone March', threat:'Brutes break the outer ring', spawns:16, types:['crawler','runner','brute'], interval:1.3, speed:1.08 },
+    { name:'Wispfall', threat:'Flying wisps ignore every wall', spawns:19, types:['runner','brute','wisp','crawler'], interval:1.1, speed:1.12 },
+    { name:'Black Surge', threat:'Heavy bodies arrive in tight waves', spawns:22, types:['runner','brute','wisp','brute'], interval:.95, speed:1.18 },
+    { name:'Last Dawn', threat:'Every strain converges on the Emberheart', spawns:26, types:['brute','wisp','runner','crawler'], interval:.8, speed:1.22 },
   ],
 
   // Enemy types (speed is world units / second)

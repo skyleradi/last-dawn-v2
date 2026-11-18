@@ -24,8 +24,11 @@ export function createUI() {
     phaseValue.textContent = value;
     if (label) phaseLabel.textContent = label;
   }
-  function setResources(wood, stone, essence) {
+  function setResources(wood, stone, essence, iron = 0, fiber = 0) {
     rWood.textContent = wood; rStone.textContent = stone; rEss.textContent = essence;
+    const rIron = el('riron'), rFiber = el('rfiber');
+    if (rIron) rIron.textContent = iron;
+    if (rFiber) rFiber.textContent = fiber;
   }
   function setScore(s) { scoreVal.textContent = s; }
   function setEmberHp(hp) { emberFill.style.width = Math.max(0, 100 * hp / CONFIG.ember.maxHp) + '%'; }
@@ -53,7 +56,8 @@ export function createUI() {
       }
     });
     document.getElementById('game').classList.toggle('building', !!kind);
-    setBuildHint(kind ? (CONFIG.buildings[kind].name + ' — click to place, right-click to cancel') : '');
+    const help = document.body.classList.contains('touch') ? 'face with joystick; Strike places; tap selected build to cancel' : 'click to place; right-click or R cancels';
+    setBuildHint(kind ? (CONFIG.buildings[kind].name + ' — ' + help) : '');
   }
 
   function costText(cost) {
@@ -61,6 +65,8 @@ export function createUI() {
     if (cost.wood) parts.push(cost.wood + 'w');
     if (cost.stone) parts.push(cost.stone + 's');
     if (cost.essence) parts.push(cost.essence + 'e');
+    if (cost.iron) parts.push(cost.iron + 'i');
+    if (cost.fiber) parts.push(cost.fiber + 'f');
     return parts.join(' ');
   }
 

@@ -7,20 +7,29 @@ export function createRenderer(canvas) {
   const THREE = window.THREE;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.shadowMap.enabled = false;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = .95;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x8fc3e8);
   scene.fog = new THREE.Fog(0x8fc3e8, CONFIG.fx.fogNear, CONFIG.fx.fogFar);
 
   const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 220);
-  const cam = { yaw: Math.PI * 0.25, pitch: 0.92, dist: 27, target: { x: 0, z: 0 } };
+  const cam = { yaw: Math.PI * 0.25, pitch: 0.62, dist: 25, target: { x: 0, z: 0 } };
 
   // --- Lights: tuned per phase via setMood() ---------------------------------
   const hemi = new THREE.HemisphereLight(0xcfe6ff, 0x6a5a3a, 1.0);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff2c8, 1.35);
   sun.position.set(14, 30, 10);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024,1024);
+  Object.assign(sun.shadow.camera,{left:-30,right:30,top:30,bottom:-30,near:1,far:90});
+  sun.shadow.bias = -0.001;
+  sun.shadow.normalBias = 0.035;
   scene.add(sun);
   const rim = new THREE.DirectionalLight(0xff7a3a, 0.4);
   rim.position.set(-12, 8, -8);
@@ -57,8 +66,8 @@ export function createRenderer(canvas) {
     } else {
       scene.background.set(0x0a0918);
       scene.fog.color.set(0x0a0918); scene.fog.near = CONFIG.fx.fogNear; scene.fog.far = CONFIG.fx.fogFar;
-      hemi.color.set(0x3a4470); hemi.groundColor.set(0x141226); hemi.intensity = 0.6;
-      sun.color.set(0x8a93c8); sun.intensity = 0.5; sun.position.set(14, 40, 10);
+      hemi.color.set(0x9bb8d1); hemi.groundColor.set(0x30424c); hemi.intensity = .85;
+      sun.color.set(0xb5c8ed); sun.intensity = .7; sun.position.set(14, 40, 10);
       rim.intensity = 0.55;
       stars.material.opacity = 0.95;
     }
@@ -131,9 +140,7 @@ export function createRenderer(canvas) {
   const mouseNdc = { x: 0, y: 0 };
 
   function updateCamera(dt, playerPos, input) {
-    if (input.state.mouse.dragging) {
-      cam.yaw += input.state.mouse.x * 0.02;
-    }
+    cam.yaw -= input.state.orbit;
     cam.dist = Math.min(44, Math.max(14, cam.dist + input.state.wheel * 1.6));
     input.state.wheel = 0;
 

@@ -12,6 +12,7 @@ import { createBuildings } from './buildings.js';
 import { createUI } from './ui.js';
 import { createAudio } from './audio.js';
 import { createInput } from './input.js';
+import { createCrafting, RECIPES } from './crafting.js';
 
 export function createGame(canvas) {
   const THREE = window.THREE;
@@ -41,7 +42,7 @@ export function createGame(canvas) {
     phase: 'day',           // 'day' | 'night'
     phaseT: CONFIG.cycle.startGrace,
     night: 0,               // nights survived so far (0..7)
-    resources: { wood: 12, stone: 8, essence: 4 },
+    resources: { wood: 12, stone: 8, essence: 4, iron: 0, fiber: 0 },
     score: 0, kills: 0,
     wave: null,
     time: 0,
@@ -49,10 +50,34 @@ export function createGame(canvas) {
     muted: false,
   };
 
+  const crafting = createCrafting(G,player,buildings);
+  const forge = document.getElementById('forge');
+  function refreshForge() {
+    for(const id of Object.keys(RECIPES)) {
+      const o=crafting.offer(id),b=document.querySelector(`[data-craft="${id}"]`);
+      b.innerHTML=`<strong>${o.name}${id==='tonic'?'':' · '+o.level+'/'+o.max}</strong><small>${o.desc}</small><span>${o.reason || Object.entries(o.cost).map(([k,v])=>v+' '+k).join(' · ')}</span>`;
+      b.disabled=!!o.reason||!o.affordable;
+    }
+  }
   let last = performance.now();
 
   // ------------------------- helpers ---------------------------------------
-  function aimPos() { return renderer.aimTarget(); }
+  function aimPos() {
+    const p = player.state;
+    if (input.state.touch) return { x:p.x+Math.sin(p.facing)*3.2, z:p.z+Math.cos(p.facing)*3.2 };
+    renderer.setMouseNdc(input.state.mouse.x, input.state.mouse.y);
+    return renderer.aimTarget();
+  }
+  function pause(on) {
+    if (!['playing','paused'].includes(G.state)) return;
+    G.state = on ? 'paused' : 'playing';
+    input.reset();
+    document.getElementById('pause').style.display = on ? 'flex' : 'none';
+  }
+  function mute() {
+    G.muted = audio.toggleMuted();
+    document.getElementById('mutebtn').textContent = G.muted ? 'Unmute' : 'Mute';
+  }
   function addResource(k, v) { G.resources[k] = (G.resources[k] || 0) + v; }
   function spend(cost) {
     for (const k in cost) { if ((G.resources[k] || 0) < cost[k]) return false; }
@@ -67,8 +92,9 @@ export function createGame(canvas) {
     if (!node || node.rich <= 0) return null;
     const def = node.def;
     node.rich--;
-    const yields = def;
-    for (const k in yields) { if (k !== 'respawn') addResource(k, yields[k]); }
+    const yields = Object.fromEntries(Object.entries(def).filter(([k])=>k!=='respawn').map(([k,v])=>[k,v+crafting.levels.tools]));
+    for (const k in yields) addResource(k, yields[k]);
+    ui.showToast(Object.entries(yields).map(([k,v])=>'+'+v+' '+k).join(' · '), .8);
     if (node.rich <= 0) {
       node.visible = false;
       node._respawn = def.respawn;
@@ -114,7 +140,7 @@ export function createGame(canvas) {
       const a = Math.atan2(e.x - p.x, e.z - p.z);
       let diff = a - swing.ang;
       diff = ((diff + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-      if (Math.abs(diff) < swing.arc / 2) damageEnemy(e, swing.damage);
+      if (Math.abs(diff) < swing.arc / 2) damageEnemy(e, (swing.damage + crafting.levels.blade * 14) * (1 + crafting.levels.ward * .12));
     }
     renderer.burst(p.x + Math.sin(swing.ang) * 1.2, 1.1, p.z + Math.cos(swing.ang) * 1.2, 10, 0, 5, 3);
   }
@@ -127,7 +153,9 @@ export function createGame(canvas) {
     // Placement validity
     if (!validPlacement(kind, pos.x, pos.z)) { audio.hit(); return; }
     if (!spend(def.cost)) { audio.hit(); ui.showToast('Not enough resources'); return; }
-    buildings.placeBuild(kind, pos.x, pos.z);
+    const built=buildings.placeBuild(kind, pos.x, pos.z);
+    built.maxHp= built.hp=def.hp*(1+crafting.levels.masonry*.5);
+    ui.showToast(def.name+' built',.8);
     audio.place();
     renderer.burst(pos.x, 1, pos.z, 12, 0, 5, 3);
   }
@@ -210,10 +238,10 @@ export function createGame(canvas) {
       renderer.setMouseNdc(input.state.mouse.x, input.state.mouse.y);
       renderer.renderFrame(dt, { x: player.state.x, z: player.state.z }, input, buildings.ember, player.state.mesh);
       ui.refreshAffordability(G.resources);
-      ui.setResources(G.resources.wood, G.resources.stone, G.resources.essence);
+      ui.setResources(G.resources.wood, G.resources.stone, G.resources.essence, G.resources.iron, G.resources.fiber);
     } else if (G.state === 'paused') {
       // render a frozen frame (still respond to pause toggle)
-      if (input.pressed('KeyP') || input.pressed('Escape')) G.state = 'playing';
+      if (input.pressed('KeyP') || input.pressed('Escape')) pause(false);
     } else {
       // title / victory / defeat: keep rendering the scene idle
       renderer.setMouseNdc(input.state.mouse.x, input.state.mouse.y);
@@ -226,10 +254,10 @@ export function createGame(canvas) {
 
   function update(dt) {
     if (input.pressed('KeyP') || input.pressed('Escape')) {
-      G.state = 'paused';
+      pause(true);
       return;
     }
-    if (input.pressed('KeyM') || input.pressed('KeyX')) G.muted = audio.toggleMuted();
+    if (input.pressed('KeyM') || input.pressed('KeyX')) mute();
 
     resetNodeTimers(dt);
 
@@ -237,15 +265,15 @@ export function createGame(canvas) {
     const aim = aimPos();
     player.update(dt, input, { aimX: aim.x, aimZ: aim.z, camYaw: renderer.cam.yaw });
 
-    // ---- harvest (hold E near a node) ----
-    if (input.state.keys.has('KeyE')) {
+    // ---- harvest (keyboard E or mobile GATHER) ----
+    if (input.state.keys.has('KeyE') || input.state.touchGather) {
       const node = nearestNode(player.state);
       if (node && node.rich > 0) {
-        player.state.harvestCd -= dt;
+
         if (player.state.harvestCd <= 0) {
           player.state.harvestCd = CONFIG.player.harvestTime;
           const y = harvestNode(node);
-          if (y) { audio.harvest(); renderer.burst(node.x ?? node.position.x, 1, node.z ?? node.position.z, 5, 2, 3, 2); }
+      if (y) { audio.harvest(); renderer.burst(node.x ?? node.position.x, 1, node.z ?? node.position.z, 5, node.kind === 'iron' ? 1 : 2, 3, 2); }
         }
       } else {
         // E also repairs the ember when close
@@ -253,12 +281,12 @@ export function createGame(canvas) {
       }
     }
 
-    // ---- slash or build on click ----
-    if (input.state.mouse.justDown) {
+    // ---- slash/build (mouse click or mobile STRIKE) ----
+    if (input.state.mouse.justDown || (ui.selectedBuild ? input.state.touchAttackPressed : input.state.touchAttack)) {
       if (ui.selectedBuild) doBuild();
       else doSlash();
     }
-    if (input.pressed('KeyQ') || input.state.mouse.rightDown && false) {} // (right-click handled in input)
+    if (input.state.mouse.cancel) ui.selectBuild(null);
 
     // ---- build hotkeys ----
     if (input.pressed('Digit1')) { ui.selectBuild(ui.selectedBuild === 'wall' ? null : 'wall'); audio.select(); }
@@ -275,14 +303,16 @@ export function createGame(canvas) {
     } else ghost.visible = false;
 
     // ---- enemies ----
-    enemies.update(dt, { x: CONFIG.ember.x, z: CONFIG.ember.z }, buildings.structures, buildings.structures,
-      buildings.structures, onEmberHit, null, null, onTowerFire);
+    enemies.update(dt, { x: CONFIG.ember.x, z: CONFIG.ember.z },
+      buildings.structures.filter(s=>s.kind==='wall'), buildings.structures.filter(s=>s.kind==='tower'),
+      buildings.structures.filter(s=>s.kind==='beacon'), onEmberHit, null, null, onTowerFire);
 
     // ---- ember damage + player damage (touch) ----
     attackEmberAndPlayer(dt);
 
     // ---- projectiles (towers) hit enemies ----
     for (const pr of renderer.projectiles) {
+      if (pr.hit) continue;
       for (const e of enemies.list) {
         if (e.dead) continue;
         if (Math.hypot(pr.mesh.position.x - e.x, pr.mesh.position.z - e.z) < 0.8) {
@@ -304,19 +334,17 @@ export function createGame(canvas) {
       // night: enemies still spawning? all dead?
       const spawning = G.wave && G.wave.update(dt) === false;
       const alive = enemies.list.some(e => !e.dead);
-      if (G.wave && G.wave.remaining === 0 || (!spawning && !alive)) {
-        // night over
-        if (G.phaseT <= 0 || (!spawning && !alive)) {
-          nightCleared();
-        }
-      }
-      // fallback: if timer runs out, clear anyway (but enemies stay)
+      if (!spawning && !alive) nightCleared();
     }
 
     // ---- ui sync ----
     ui.setEmberHp(buildings.ember.hp);
     ui.setPlayerHp(player.state.hp);
     ui.setScore(G.score);
+    document.getElementById('objective').textContent=G.phase==='day'
+      ? `FORTIFY · Dusk in ${Math.ceil(Math.max(0,G.phaseT))}s · Survive 7 nights`
+      : `DEFEND · ${enemies.list.filter(e=>!e.dead).length} foes · ${G.wave?.remaining||0} incoming`;
+    if(!forge.hidden)refreshForge();
 
     // ---- lose ----
     if (buildings.ember.hp <= 0) { defeat(); return; }
@@ -372,13 +400,7 @@ export function createGame(canvas) {
       if (Math.hypot(s.x - p.x, s.z - p.z) < def.aura) {
         player.heal(def.heal * dt);
       }
-      for (const e of enemies.list) {
-        if (e.dead) continue;
-        if (Math.hypot(s.x - e.x, s.z - e.z) < def.aura) {
-          e.x -= (e.x - s.x) * def.slow * dt;
-          e.z -= (e.z - s.z) * def.slow * dt;
-        }
-      }
+
     }
   }
 
@@ -402,12 +424,23 @@ export function createGame(canvas) {
     resize();
     ui.startBtn.addEventListener('click', begin);
     ui.restartBtn.addEventListener('click', restart);
+    document.getElementById('pausebtn').addEventListener('click',()=>pause(true));
+    document.getElementById('resumebtn').addEventListener('click',()=>pause(false));
+    document.getElementById('mutebtn').addEventListener('click',mute);
+    window.addEventListener('blur',()=>pause(true));
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)pause(true);});
     window.addEventListener('resize', resize);
     ui.buildButtons.forEach(bb => bb.addEventListener('click', () => {
       if (G.state !== 'playing') return;
       const kind = bb.dataset.build;
       ui.selectBuild(ui.selectedBuild === kind ? null : kind);
       audio.select();
+    }));
+    document.getElementById('forgebtn').addEventListener('click',()=>{forge.hidden=!forge.hidden;refreshForge();});
+    document.getElementById('forgeclose').addEventListener('click',()=>forge.hidden=true);
+    document.querySelectorAll('[data-craft]').forEach(b=>b.addEventListener('click',()=>{
+      if(G.state!=='playing')return;
+      const result=crafting.buy(b.dataset.craft);ui.showToast(result.message,1.2);if(result.ok)audio.place();refreshForge();
     }));
     ui.showTitle(true);
     ui.showHud(false);
@@ -419,7 +452,7 @@ export function createGame(canvas) {
   // Debug hooks: let the screenshot harness (and only it) stage specific
   // scenes. Harmless in normal play — no gameplay code calls these.
   const debug = {
-    player, enemies, buildings, renderer, ui, input, nodes, scene, G,
+    player, enemies, buildings, renderer, ui, input, nodes, scene, G, crafting, harvestNode, update,
     forceNight() { startNight(); },
     forceDay() { startDay(); },
     forceWin() { G.night = CONFIG.cycle.nightCount - 1; nightCleared(); },

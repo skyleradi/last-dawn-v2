@@ -1,166 +1,90 @@
-// LAST DAWN — world.js
-// Builds the floating island: terrain mesh, shore cliff, fog, and the
-// resource nodes (trees, rocks, glowshards) the player harvests.
+// Deterministic coastal diorama; walking surface remains level for reliable controls.
 import { CONFIG } from './config.js';
-
-// Deterministic PRNG so screenshots and replays are reproducible.
-export function mulberry32(seed) {
-  return function () {
-    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+import { kit } from './models.js';
+export function mulberry32(seed) { return function(){ seed|=0; seed=(seed+0x6D2B79F5)|0;let t=Math.imul(seed^(seed>>>15),1|seed);t=(t+Math.imul(t^(t>>>7),61|t))^t;return ((t^(t>>>14))>>>0)/4294967296; }; }
+export function buildTerrain(scene,T) {
+  const g=new T.Group(),k=kit(T),rand=mulberry32(88);scene.add(g);
+  // Three exposed strata, grassy lip, and a sand shelf above the sea.
+  k.cylinder(g,0x354852,24,20,4.2,0,-3,0,32);
+  k.cylinder(g,0x617478,24.5,25.5,1.4,0,-1.9,0,32);
+  k.cylinder(g,0x829079,24.4,24.7,.7,0,-.85,0,32);
+  const top=k.cylinder(g,0x426b50,24.2,24.4,.5,0,-.25,0,48);
+  // Faceted patches break up the flat field without introducing invisible slopes.
+  for(let i=0;i<100;i++) {
+    const a=rand()*Math.PI*2,d=4+rand()*19;
+    const patch=k.cylinder(g,[0x4d7756,0x527c59,0x3e654d][i%3],.7+rand()*1.4,1,.018,Math.cos(a)*d,.012,Math.sin(a)*d,5);
+    patch.rotation.y=rand()*6;
+  }
+  for(let i=0;i<32;i++) {
+    const a=i*Math.PI/16,d=24+rand()*.8;
+    const rock=k.rock(g,i%2?0x667a7b:0x4b626b,1.2+rand(),Math.cos(a)*d,-1.8,Math.sin(a)*d);
+    rock.scale.y=1.5+rand();
+  }
+  // Paths radiate from the sanctuary, with individual paving stones near home.
+  k.cylinder(g,0x8b8970,3.3,3.3,.035,0,.025,0,12);
+  for(let arm=0;arm<4;arm++) for(let i=0;i<14;i++) {
+    const a=arm*Math.PI/2+.12*Math.sin(i*.35),d=3+i*1.35;
+    const tile=k.box(g,i%3?0x8b8c76:0xa3a089,1.4,.04,1.55,Math.sin(a)*d,.035,Math.cos(a)*d);
+    tile.rotation.y=a+rand()*.1;
+  }
+  const water=k.cylinder(g,0x286c80,160,160,.12,0,-5.1,0,64);water.receiveShadow=false;
+  // Coastal foam and distant rocky islets anchor the horizon.
+  for(let i=0;i<30;i++) {
+    const a=rand()*Math.PI*2,d=27+rand()*16;
+    const foam=k.box(g,0x72aaa9,1+rand()*4,.025,.13,Math.sin(a)*d,-5,Math.cos(a)*d);foam.rotation.y=a;
+  }
+  for(let i=0;i<12;i++) {
+    const a=i*Math.PI/6,d=60+rand()*25;
+    k.cylinder(g,0x52717a,0,5+rand()*8,10+rand()*14,Math.sin(a)*d,-2,Math.cos(a)*d,5);
+  }
+  // Grass tufts and small flowers are geometry, not downloaded textures.
+  for(let i=0;i<95;i++) {
+    const a=rand()*6.28,d=5+rand()*17,x=Math.sin(a)*d,z=Math.cos(a)*d;
+    k.cylinder(g,0x80935b,0,.15,.4,x,.2,z,3);
+    if(i%4===0) k.rock(g,i%8?0xd8b767:0x8fa9bc,.11,x,.4,z);
+  }
+  return top;
 }
-
-const PALETTE = {
-  grassTop: 0x5fae72, grassLow: 0x46905a,
-  cliff: 0x5a4a3a, stone: 0x8a8f9a, wood: 0x7a5232,
-  leaf: 0x4f9a62, leafDark: 0x3a7a4c,
-  shard: 0xffd36a, shardGlow: 0xff8c3a,
-};
-
-// ------------------------- Terrain ----------------------------------------
-export function buildTerrain(scene, THREE) {
-  const r = CONFIG.world.islandRadius + CONFIG.world.shoreDrop;
-  const radius = CONFIG.world.islandRadius;
-  const seg = 64;
-
-  const geo = new THREE.CylinderGeometry(
-    r, r + 1.2, 1, seg, 3
-  );
-  // Repurpose a cylinder into a rounded island top by moving vertices.
-  const pos = geo.attributes.position;
-  const colors = new Float32Array(pos.count * 3);
-  const v = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i);
-    const x = v.x, z = v.z;
-    const d = Math.sqrt(x * x + z * z);
-    const isTop = v.y > 0.4;
-    // Top cap centre is at y=0.5 (cylinder height 1). Lower into island.
-    if (isTop) {
-      const t = Math.min(d / radius, 1.2);
-      v.y = 0.0 + Math.sin(Math.min(t, 1) * Math.PI * 0.5) * -0.4;
-      v.y -= t * t * 0.3;
-      // subtle undulation
-      v.y += Math.sin(x * 0.7) * Math.cos(z * 0.6) * 0.12;
+export function buildNodes(scene,T) {
+  const rand=mulberry32(1337),nodes=[],k=kit(T);
+  function spot(min) {
+    for(let i=0;i<80;i++) {
+      const a=rand()*6.283,d=min+rand()*(CONFIG.world.islandRadius-2-min),x=Math.cos(a)*d,z=Math.sin(a)*d;
+      if(nodes.every(n=>Math.hypot(n.x-x,n.z-z)>2.3)) return {x,z};
+    }
+    return {x:min,z:0};
+  }
+  function node(kind,i) {
+    const p=spot(kind==='tree'?8:6.5),g=new T.Group();g.position.set(p.x,0,p.z);
+    if(kind==='tree') {
+      const h=2.8+rand()*1.8;
+      k.cylinder(g,0x6b4c37,.16,.35,h,0,h/2,0,6);
+      for(const s of [-1,1]) {const branch=k.cylinder(g,0x6b4c37,.08,.15,1.3,s*.35,h*.6,0,5);branch.rotation.z=-s*.55;}
+      if(i%3===0) {
+        for(let j=0;j<3;j++) k.cylinder(g,[0x28584e,0x356b55,0x457d5b][j],0,1.5-j*.3,1.8,0,h*.6+j*.85,0,7);
+      } else {
+        for(let j=0;j<4;j++) {const leaf=k.rock(g,[0x397457,0x52865c,0x73905b,0x467856][(i+j)%4],1.1,Math.sin(j*2)*.65,h+Math.cos(j)*.4,Math.cos(j*2)*.65);leaf.scale.y=.85;}
+      }
+      for(let j=0;j<3;j++) k.rock(g,0x567453,.3,Math.sin(j*2)*.6,.15,Math.cos(j*2)*.6);
+    } else if(kind==='rock') {
+      for(let j=0;j<3;j++) {const rock=k.rock(g,[0x8a999a,0x627680,0xa0a99f][j],.7-j*.12,j*.45-.35,.35,j%2*.4);rock.scale.y=.8;}
+    } else if(kind==='iron') {
+      // Iron is staged as a darker, heavier quarry node with visible metal veins.
+      k.rock(g,0x263943,.95,0,.42,0);
+      for(let j=0;j<4;j++) {
+        const vein=k.rock(g,[0x8fa7ad,0x557b86,0xb4c5bd][j%3],.27,(j-1.5)*.36,.72+(j%2)*.18,(j%2-.5)*.28);
+        vein.scale.y=1.7; vein.rotation.z=j*.5;
+      }
+      k.box(g,0x40545a,2.2,.08,.18,0,.04,0);
     } else {
-      v.y = -CONFIG.world.shoreDrop - 0.4;
+      k.rock(g,0x455767,.65,0,.2,0);
+      for(let j=0;j<3;j++) {const crystal=k.mesh(g,new T.OctahedronGeometry(.35),0xe7ae4f,(j-1)*.35,.65+j*.16,0,.22);crystal.scale.y=1.7;crystal.rotation.z=(j-1)*.3;}
     }
-    pos.setXYZ(i, v.x, v.y, v.z);
-
-    // Vertex colour: lush grass on top, rocky earth on the cliff sides.
-    let col;
-    if (isTop) {
-      const mix = Math.min(d / radius, 1);
-      const t = mix < 0.92 ? lerpColor(PALETTE.grassTop, PALETTE.grassLow, mix / 0.92)
-                          : PALETTE.grassLow;
-      col = new THREE.Color(t);
-    } else {
-      col = new THREE.Color(PALETTE.cliff);
-    }
-    colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b;
+    g.kind=kind;g.def=CONFIG.nodes[kind];g.rich=1;g.x=p.x;g.z=p.z;scene.add(g);nodes.push(g);
   }
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geo.computeVertexNormals();
-
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0.0, flatShading: false });
-  const island = new THREE.Mesh(geo, mat);
-  island.receiveShadow = false;
-  scene.add(island);
-  return island;
-}
-
-function lerpColor(a, b, t) {
-  const ca = new THREE.Color(a), cb = new THREE.Color(b);
-  return ca.lerp(cb, t).getHex();
-}
-
-// ------------------------- Resource nodes ----------------------------------
-export function buildNodes(scene, THREE) {
-  const rand = mulberry32(1337);
-  const nodes = [];
-  const { islandRadius, treeCount, rockCount, shardCount } = CONFIG.world;
-
-  function ringSpot(minR, maxR, avoid) {
-    for (let tries = 0; tries < 40; tries++) {
-      const a = rand() * Math.PI * 2;
-      const d = minR + rand() * (maxR - minR);
-      const x = Math.cos(a) * d, z = Math.sin(a) * d;
-      if (!avoid || !avoid.some(o => Math.hypot(o.x - x, o.z - z) < 2.4)) return { x, z };
-    }
-    return { x: minR * 0.5, z: 0 };
-  }
-
-  const placed = [];
-  for (let i = 0; i < treeCount; i++) {
-    const p = ringSpot(8, islandRadius - 1.5, placed);
-    placed.push(p);
-    nodes.push(makeTree(scene, THREE, p.x, p.z, rand));
-  }
-  for (let i = 0; i < rockCount; i++) {
-    const p = ringSpot(6.5, islandRadius - 1.5, placed);
-    placed.push(p);
-    nodes.push(makeRock(scene, THREE, p.x, p.z));
-  }
-  for (let i = 0; i < shardCount; i++) {
-    const p = ringSpot(10, islandRadius - 2, placed);
-    placed.push(p);
-    nodes.push(makeShard(scene, THREE, p.x, p.z));
-  }
+  for(let i=0;i<CONFIG.world.treeCount;i++)node('tree',i);
+  for(let i=0;i<CONFIG.world.rockCount;i++)node('rock',i);
+  for(let i=0;i<CONFIG.world.shardCount;i++)node('shard',i);
+  for(let i=0;i<CONFIG.world.ironCount;i++)node('iron',i);
   return nodes;
-}
-
-function makeTree(scene, THREE, x, z, rand) {
-  const group = new THREE.Group();
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.22, 0.32, 2.2, 5),
-    new THREE.MeshStandardMaterial({ color: PALETTE.wood, roughness: 0.9 })
-  );
-  trunk.position.y = 1.1; trunk.castShadow = false;
-  const leaf = new THREE.Mesh(
-    new THREE.ConeGeometry(1.4, 3.2, 6),
-    new THREE.MeshStandardMaterial({ color: rand() > 0.5 ? PALETTE.leaf : PALETTE.leafDark, roughness: 0.85 })
-  );
-  leaf.position.y = 3.0; leaf.castShadow = false;
-  group.add(trunk, leaf);
-  group.position.set(x, 0, z);
-  group.rotation.y = rand() * Math.PI;
-  group.userData = { kind: 'tree', def: CONFIG.nodes.tree, rich: 1 };
-  scene.add(group);
-  return group;
-}
-
-function makeRock(scene, THREE, x, z) {
-  const rock = new THREE.Mesh(
-    new THREE.DodecahedronGeometry(0.7, 0),
-    new THREE.MeshStandardMaterial({ color: PALETTE.stone, roughness: 0.7, flatShading: true })
-  );
-  rock.position.set(x, 0.25, z);
-  rock.rotation.set(Math.random() * 3, Math.random() * 3, 0);
-  rock.scale.set(1, 0.7, 1.2);
-  rock.userData = { kind: 'rock', def: CONFIG.nodes.rock, rich: 1 };
-  scene.add(rock);
-  return rock;
-}
-
-function makeShard(scene, THREE, x, z) {
-  const group = new THREE.Group();
-  const crystal = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.55, 0),
-    new THREE.MeshStandardMaterial({ color: PALETTE.shard, roughness: 0.2, emissive: PALETTE.shard, emissiveIntensity: 0.8 })
-  );
-  crystal.position.y = 0.9;
-  crystal.rotation.set(0.4, 0, 0.3);
-  const glow = new THREE.Mesh(
-    new THREE.SphereGeometry(0.85, 8, 8),
-    new THREE.MeshBasicMaterial({ color: PALETTE.shardGlow, transparent: true, opacity: 0.16 })
-  );
-  glow.position.y = 0.9;
-  group.add(crystal, glow);
-  group.position.set(x, 0, z);
-  group.userData = { kind: 'shard', def: CONFIG.nodes.shard, rich: 1, glowMesh: glow };
-  scene.add(group);
-  return group;
 }

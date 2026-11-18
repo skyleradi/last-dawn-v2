@@ -4,6 +4,7 @@
 // wisp (flies over everything). Movement seeks the ember but skirts walls.
 import { CONFIG, waveFor } from './config.js';
 import { mulberry32 } from './world.js';
+import { creatureModel } from './models.js';
 
 export function createEnemies(scene, THREE) {
   const list = [];
@@ -55,9 +56,9 @@ export function createEnemies(scene, THREE) {
     const e2 = e.clone(); e2.position.x = -x; group.add(e2);
   }
 
-  function spawn(kind, x, z) {
+  function spawn(kind, x, z, waveSpeed = 1) {
     let mesh = geomCache[kind];
-    if (!mesh) { mesh = meshFor(kind); geomCache[kind] = mesh; }
+    if (!mesh) { mesh = creatureModel(THREE, kind, CONFIG.enemies[kind]); geomCache[kind] = mesh; }
     const m = mesh.clone();
     m.visible = true;
     m.position.set(x, 0, z);
@@ -66,7 +67,7 @@ export function createEnemies(scene, THREE) {
     const e = {
       kind, x, z, y: 0,
       hp: def.hp, maxHp: def.hp,
-      speed: def.speed * (0.85 + Math.random() * 0.3),
+      speed: def.speed * (0.85 + Math.random() * 0.3) * (waveSpeed || 1),
       radius: def.radius, touchDps: def.touchDps, damage: def.damage,
       score: def.score, fly: !!def.fly,
       mesh: m,
@@ -84,14 +85,15 @@ export function createEnemies(scene, THREE) {
     const rand = mulberry32(900 + nightIndex * 71);
     let spawned = 0, timer = 0;
     return {
-      remaining: w.spawns,
+      name: w.name, threat: w.threat, composition: w.types.slice(),
+      get remaining() { return w.spawns - spawned; },
       update(dt) {
         timer -= dt;
         if (spawned < w.spawns && timer <= 0) {
           const kind = w.types[spawned % w.types.length];
           const a = rand() * Math.PI * 2;
           const d = CONFIG.world.islandRadius - 1.6;
-          spawn(kind, Math.cos(a) * d, Math.sin(a) * d);
+          spawn(kind, Math.cos(a) * d, Math.sin(a) * d, w.speed);
           spawned++;
           timer = w.interval;
         }
@@ -107,21 +109,25 @@ export function createEnemies(scene, THREE) {
       const dist = Math.hypot(dx, dz) || 0.001;
       let dirX = dx / dist, dirZ = dz / dist;
 
-      // Wall avoidance: steer around the nearest wall collar.
-      const wall = nearestWall(e, walls);
-      if (wall && !e.fly) {
-        const wdx = e.x - wall.x, wdz = e.z - wall.z, wd = Math.hypot(wdx, wdz) || 0.001;
-        if (wd < wall.radius + e.radius + 0.35) {
-          const push = (wall.radius + e.radius + 0.35) - wd;
-          dirX += (wdx / wd) * push * 2.4;
-          dirZ += (wdz / wd) * push * 2.4;
-          const nl = Math.hypot(dirX, dirZ) || 1;
-          dirX /= nl; dirZ /= nl;
+      // Ground units must break defenses that intercept their route.
+      const wall = nearestWall(e, [...walls,...towers,...beacons]);
+      let attacking = false;
+      if (wall && !e.fly && Math.hypot(e.x-wall.x,e.z-wall.z) < wall.radius+e.radius+.4) {
+        attacking=true;
+        e.attackCd=(e.attackCd||0)-dt;
+        if(e.attackCd<=0) {
+          e.attackCd=.8; wall.hp=Math.max(0,wall.hp-e.damage);
+          wall.mesh.scale.y=.92;
+          if(wall.hp<=0) {wall.alive=false;wall.mesh.visible=false;scene.remove(wall.mesh);}
         }
       }
+      for(const b of [...walls,...towers,...beacons]) b.mesh.scale.y += (1-b.mesh.scale.y)*Math.min(1,dt*8);
 
-      e.x += dirX * e.speed * dt;
-      e.z += dirZ * e.speed * dt;
+      const slowed = beacons.some(b=>b.alive && Math.hypot(e.x-b.x,e.z-b.z)<CONFIG.buildings.beacon.aura);
+      const speed = attacking ? 0 : e.speed * (slowed ? 1-CONFIG.buildings.beacon.slow : 1);
+      e.mesh.children.filter(c=>c.name==='limb').forEach((c,i)=>c.rotation.x=Math.sin(e.bobPhase*2+i*Math.PI)*.45);
+      e.x += dirX * speed * dt;
+      e.z += dirZ * speed * dt;
       e.bobPhase += dt * 6;
       const bob = e.fly ? Math.sin(e.bobPhase) * 0.4 + 0.8 : Math.sin(e.bobPhase) * 0.06;
       e.mesh.position.set(e.x, e.y + bob, e.z);
@@ -134,10 +140,10 @@ export function createEnemies(scene, THREE) {
     }
     // Towers fire
     for (const t of towers) {
-      if (!t.alive) continue;
+      if (!t.alive || t.kind !== 'tower') continue;
       t.cd -= dt;
       if (t.cd <= 0) {
-        const target = list.find(en => !en.dead && !en.fly && Math.hypot(en.x - t.x, en.z - t.z) < CONFIG.buildings.tower.range + en.radius);
+        const target = list.find(en => !en.dead && Math.hypot(en.x - t.x, en.z - t.z) < CONFIG.buildings.tower.range + en.radius);
         if (target) {
           t.cd = CONFIG.buildings.tower.fireRate;
           onProjectile(t, target);

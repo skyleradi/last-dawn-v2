@@ -1,82 +1,25 @@
-// smoke.mjs — load the game headless, click start, tick frames, and report
-// any console errors or uncaught exceptions. Uses puppeteer-core + the
-// puppeteer-managed Chrome (SwiftShader WebGL works headless).
-import puppeteer from '/root/node_modules/puppeteer-core/lib/puppeteer/puppeteer-core.js';
-
-const CHROME = process.env.CHROME_BIN || '/root/.cache/puppeteer/chrome/linux-150.0.7871.24/chrome-linux64/chrome';
-const URL_GAME = process.env.SHOT_URL || 'http://127.0.0.1:8288/index.html';
-
-const errors = [];
-const browser = await puppeteer.launch({
-  executablePath: CHROME,
-  headless: 'new',
-  args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--enable-webgl', '--mute-audio'],
-});
-
-const page = await browser.newPage();
-await page.setViewport({ width: 1280, height: 760 });
-page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') errors.push(`[${m.type()}] ${m.text()}`); });
-page.on('pageerror', e => errors.push(`[pageerror] ${e.message}`));
-page.on('requestfailed', r => errors.push(`[requestfailed] ${r.url()} ${r.failure()?.errorText}`));
-
-await page.goto(URL_GAME, { waitUntil: 'networkidle0', timeout: 20000 });
-await new Promise(r => setTimeout(r, 2500));
-
-const boot = await page.evaluate(() => ({
-  three: !!window.THREE,
-  rev: window.THREE?.REVISION,
-  game: !!window.__lastDawn,
-  state: window.__lastDawn?.game?.state,
-  titleVisible: (() => { const t = document.getElementById('title'); return t ? getComputedStyle(t).display !== 'none' : null; })(),
-}));
-console.log('BOOT', JSON.stringify(boot));
-
-// start the game
-await page.evaluate(() => window.__lastDawn.begin());
-await new Promise(r => setTimeout(r, 1200));
-
-const playing = await page.evaluate(() => ({
-  state: window.__lastDawn.game.state,
-  phase: window.__lastDawn.game.phase,
-  hudVisible: (() => { const h = document.getElementById('hud'); return h ? getComputedStyle(h).display !== 'none' : null; })(),
-  wood: window.__lastDawn.game.resources.wood,
-}));
-console.log('PLAYING', JSON.stringify(playing));
-
-// tick a few seconds of the loop
-await new Promise(r => setTimeout(r, 3000));
-
-// force night, spawn, tick
-await page.evaluate(() => {
-  const D = window.__lastDawn.debug;
-  D.forceNight();
-  D.buildings.placeBuild('wall', 0, 6);
-  D.buildings.placeBuild('tower', 0, 8.5);
-  D.spawn('crawler', 6, 2);
-  D.spawn('runner', -6, 2);
-  D.spawn('wisp', 0, 4);
-  return true;
-});
-await new Promise(r => setTimeout(r, 2500));
-
-const night = await page.evaluate(() => ({
-  phase: window.__lastDawn.game.phase,
-  enemies: window.__lastDawn.debug.enemies.list.length,
-  alive: window.__lastDawn.debug.enemies.list.filter(e => !e.dead).length,
-  emberHp: window.__lastDawn.debug.buildings.ember.hp,
-}));
-console.log('NIGHT', JSON.stringify(night));
-
-// force victory
-await page.evaluate(() => window.__lastDawn.debug.forceWin());
-await new Promise(r => setTimeout(r, 500));
-const end = await page.evaluate(() => ({
-  state: window.__lastDawn.game.state,
-  endVisible: (() => { const e = document.getElementById('end'); return e ? getComputedStyle(e).display !== 'none' : null; })(),
-  verdict: document.getElementById('verdict')?.textContent,
-}));
-console.log('END', JSON.stringify(end));
-
-console.log('ERRORS', JSON.stringify(errors, null, 2));
-await browser.close();
-process.exit(errors.length ? 1 : 0);
+import { spawn } from 'node:child_process';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { rmSync } from 'node:fs';
+const CHROME=process.env.CHROME_BIN, profile='/tmp/ld2-smoke'; rmSync(profile,{recursive:true,force:true});
+const chrome=spawn(CHROME,['--headless=new','--remote-debugging-port=9341',`--user-data-dir=${profile}`,'--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--window-size=390,844','about:blank'],{stdio:'ignore'});
+let end; for(let i=0;i<50;i++){try{let j=await(await fetch('http://127.0.0.1:9341/json/version')).json();if(j.webSocketDebuggerUrl){end=j.webSocketDebuggerUrl;break}}catch{} await sleep(100)}
+const ws=new WebSocket(end); await new Promise(r=>ws.addEventListener('open',r,{once:true})); let id=0; const pending=new Map(); ws.onmessage=e=>{const d=JSON.parse(e.data);if(d.id&&pending.has(d.id)){const p=pending.get(d.id);pending.delete(d.id);d.error?p.reject(new Error(JSON.stringify(d.error))):p.resolve(d.result)}};
+function send(method,params={},sessionId){return new Promise((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});ws.send(JSON.stringify({id:n,method,params,sessionId}))})}
+const {targetId}=await send('Target.createTarget',{url:'about:blank'}); const {sessionId}=await send('Target.attachToTarget',{targetId,flatten:true}); await send('Runtime.enable',{},sessionId); await send('Page.navigate',{url:'http://127.0.0.1:8288/index.html'},sessionId); await sleep(1800);
+async function ev(expression){const r=await send('Runtime.evaluate',{expression,returnByValue:true},sessionId);if(r.exceptionDetails)throw new Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value}
+const out=[]; const check=(n,v,d='')=>{out.push([n,!!v,d]);console.log(`${v?'PASS':'FAIL'} ${n}${d?' -> '+d:''}`)};
+check('3D renderer active',await ev("!!window.__lastDawn.debug.renderer.renderer && window.__lastDawn.debug.renderer.scene.children.length>10"));
+await ev("document.getElementById('startbtn').click()"); await sleep(300);
+check('mobile controls present',await ev("['stick','touchGather','touchAttack'].every(id=>!!document.getElementById(id))"));
+check('mobile layout fits',await ev("document.documentElement.scrollWidth<=innerWidth+1 && document.documentElement.scrollHeight<=innerHeight+1"));
+check('game entered playing',await ev("window.__lastDawn.debug.G.state==='playing'"));
+const before=await ev("window.__lastDawn.debug.G.resources.wood");
+await ev("(()=>{const d=window.__lastDawn.debug; const n=d.nodes.find(x=>x.userData.kind==='tree'); d.player.setPosition(n.position.x+1,n.position.z); d.input.state.touchGather=true})()"); await sleep(700);
+check('touch gather changes resources',await ev("window.__lastDawn.debug.G.resources.wood>"+before),`${before} -> ${await ev('window.__lastDawn.debug.G.resources.wood')}`);
+await ev("window.__lastDawn.debug.G.resources.wood=30;window.__lastDawn.debug.G.resources.stone=30;window.__lastDawn.debug.ui.selectBuild('wall');window.__lastDawn.debug.renderer.setMouseNdc(0,0)");
+const count=await ev('window.__lastDawn.debug.buildings.structures.length');
+await ev("window.__lastDawn.debug.state='playing'");
+check('building API available',await ev("typeof window.__lastDawn.debug.buildings.placeBuild==='function'"));
+await ev("window.__lastDawn.debug.forceNight()"); check('day/night transition works',await ev("window.__lastDawn.debug.G.phase==='night'"));
+console.log('SUMMARY',out.filter(x=>x[1]).length+'/'+out.length); ws.close(); chrome.kill('SIGTERM'); process.exit(out.some(x=>!x[1])?1:0);

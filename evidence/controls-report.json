@@ -1,0 +1,302 @@
+{
+  "results": [
+    {
+      "name": "desktop title fits",
+      "pass": true
+    },
+    {
+      "name": "desktop begin",
+      "pass": true
+    },
+    {
+      "name": "desktop renderer",
+      "pass": true
+    },
+    {
+      "name": "desktop w moves",
+      "pass": true
+    },
+    {
+      "name": "desktop a moves",
+      "pass": true
+    },
+    {
+      "name": "desktop s moves",
+      "pass": true
+    },
+    {
+      "name": "desktop d moves",
+      "pass": true
+    },
+    {
+      "name": "desktop ArrowUp moves",
+      "pass": true
+    },
+    {
+      "name": "desktop ArrowLeft moves",
+      "pass": true
+    },
+    {
+      "name": "desktop ArrowDown moves",
+      "pass": true
+    },
+    {
+      "name": "desktop ArrowRight moves",
+      "pass": true
+    },
+    {
+      "name": "desktop orbit",
+      "pass": true
+    },
+    {
+      "name": "desktop zoom",
+      "pass": true
+    },
+    {
+      "name": "desktop sustained gathering",
+      "pass": true,
+      "detail": 9
+    },
+    {
+      "name": "desktop gather release stops",
+      "pass": true
+    },
+    {
+      "name": "desktop build paid once",
+      "pass": true,
+      "detail": [
+        {
+          "kind": "wall",
+          "x": 5.000000306144944,
+          "z": 4.999999812317281
+        }
+      ]
+    },
+    {
+      "name": "desktop cancel selection",
+      "pass": true
+    },
+    {
+      "name": "desktop strike kills and scores",
+      "pass": true,
+      "detail": {
+        "hp": -16,
+        "kills": 1
+      }
+    },
+    {
+      "name": "desktop mute",
+      "pass": true
+    },
+    {
+      "name": "desktop unmute",
+      "pass": true
+    },
+    {
+      "name": "desktop pause freezes",
+      "pass": true
+    },
+    {
+      "name": "desktop resume",
+      "pass": true
+    },
+    {
+      "name": "desktop pause keyboard reset",
+      "pass": true
+    },
+    {
+      "name": "desktop loss UI",
+      "pass": true
+    },
+    {
+      "name": "desktop restart resets",
+      "pass": true
+    },
+    {
+      "name": "portrait title fits",
+      "pass": true
+    },
+    {
+      "name": "portrait begin",
+      "pass": true
+    },
+    {
+      "name": "portrait renderer",
+      "pass": true
+    },
+    {
+      "name": "portrait controls nonoverlap",
+      "pass": true
+    },
+    {
+      "name": "portrait joystick moves screen up",
+      "pass": true,
+      "detail": {
+        "before": {
+          "x": 0,
+          "z": 4
+        },
+        "after": {
+          "x": -3.0184909572710046,
+          "z": 0.9815090427289963
+        }
+      }
+    },
+    {
+      "name": "portrait sustained gathering",
+      "pass": true,
+      "detail": 9
+    },
+    {
+      "name": "portrait gather release stops",
+      "pass": true
+    },
+    {
+      "name": "portrait build paid once",
+      "pass": true,
+      "detail": [
+        {
+          "kind": "wall",
+          "x": 0,
+          "z": 7.2
+        }
+      ]
+    },
+    {
+      "name": "portrait cancel selection",
+      "pass": true
+    },
+    {
+      "name": "portrait strike kills and scores",
+      "pass": true,
+      "detail": {
+        "hp": -16,
+        "kills": 1
+      }
+    },
+    {
+      "name": "portrait mute",
+      "pass": true
+    },
+    {
+      "name": "portrait unmute",
+      "pass": true
+    },
+    {
+      "name": "portrait pause freezes",
+      "pass": true
+    },
+    {
+      "name": "portrait resume",
+      "pass": true
+    },
+    {
+      "name": "portrait interrupted stick releases",
+      "pass": true
+    },
+    {
+      "name": "portrait loss UI",
+      "pass": true
+    },
+    {
+      "name": "portrait restart resets",
+      "pass": true
+    },
+    {
+      "name": "landscape title fits",
+      "pass": true
+    },
+    {
+      "name": "landscape begin",
+      "pass": true
+    },
+    {
+      "name": "landscape renderer",
+      "pass": true
+    },
+    {
+      "name": "landscape controls nonoverlap",
+      "pass": true
+    },
+    {
+      "name": "landscape joystick moves screen up",
+      "pass": true,
+      "detail": {
+        "before": {
+          "x": 0,
+          "z": 4
+        },
+        "after": {
+          "x": -2.963609303502441,
+          "z": 1.0363906964975564
+        }
+      }
+    },
+    {
+      "name": "landscape sustained gathering",
+      "pass": true,
+      "detail": 9
+    },
+    {
+      "name": "landscape gather release stops",
+      "pass": true
+    },
+    {
+      "name": "landscape build paid once",
+      "pass": true,
+      "detail": [
+        {
+          "kind": "wall",
+          "x": 0,
+          "z": 7.2
+        }
+      ]
+    },
+    {
+      "name": "landscape cancel selection",
+      "pass": true
+    },
+    {
+      "name": "landscape strike kills and scores",
+      "pass": true,
+      "detail": {
+        "hp": -16,
+        "kills": 1
+      }
+    },
+    {
+      "name": "landscape mute",
+      "pass": true
+    },
+    {
+      "name": "landscape unmute",
+      "pass": true
+    },
+    {
+      "name": "landscape pause freezes",
+      "pass": true
+    },
+    {
+      "name": "landscape resume",
+      "pass": true
+    },
+    {
+      "name": "landscape interrupted stick releases",
+      "pass": true
+    },
+    {
+      "name": "landscape loss UI",
+      "pass": true
+    },
+    {
+      "name": "landscape restart resets",
+      "pass": true
+    },
+    {
+      "name": "no browser errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}
