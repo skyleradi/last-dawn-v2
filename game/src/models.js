@@ -143,6 +143,18 @@ export function creatureModel(T,kind,def) {
   if(kind==='wisp') {
     k.mesh(g,new T.OctahedronGeometry(r),c,0,.5,0,.28);
     for(const s of [-1,1]) {const wing=k.box(g,0x473e69,r*1.4,.12,.48,s*r,.5,0);wing.rotation.z=s*.5;wing.name='limb';}
+  } else if(kind==='boss') {
+    // The Dusk Tyrant: a hulking crowned silhouette with a burning core, so the
+    // finale reads as one big foe among small ones even in a shrunken shot.
+    const body=k.rock(g,c,r*1.05,0,r*1.05,0);body.scale.set(1.2,1.45,1.25);
+    k.rock(g,0x2b2340,r*.72,0,r*2.55,r*.72);
+    for(const s of [-1,0,1]) {const horn=k.cylinder(g,0xd8c9b0,0,r*.19,r*1.3,s*r*.62,r*3.2,r*.5,5);horn.rotation.z=-s*.42;}
+    for(const s of [-1,1]) {
+      const limb=k.box(g,0x3b3c50,r*.34,r*1.05,r*.42,s*r*1.05,r*.5,0);limb.name='limb';
+      k.box(g,0xff835d,r*.26,r*.18,.06,s*r*.42,r*1.8,r*1.32);
+    }
+    const core=k.mesh(g,new T.IcosahedronGeometry(r*.46,0),0xff7a3c,0,r*1.45,r*.92,.55);core.name='core';
+    return g;
   } else {
     const body=k.rock(g,c,r,0,r,0);body.scale.set(1,kind==='brute'?1.25:.75,1.15);
     k.rock(g,0x3b3e55,r*.65,0,r*1.45,r*.65);

@@ -114,6 +114,9 @@ export function createGame(canvas) {
   function damageEnemy(e, amount) {
     e.hp -= amount;
     renderer.burst(e.x, e.y + 0.5, e.z, 6, 3, 4, 2);
+    renderer.impact(e.x, e.y + 0.85, e.z, e.kind === 'boss' ? 0xffb066 : 0xffe0a0);
+    // the number that lands: the clearest sign, in a still frame, that a fight is on
+    renderer.popup(e.x, e.y + 2.0, e.z, String(Math.round(amount)), e.kind === 'boss' ? '#ff9a5a' : '#ffd36a');
     if (e.hp <= 0 && !e.dead) {
       e.dead = true;
       e.mesh.visible = false;
@@ -199,6 +202,9 @@ export function createGame(canvas) {
     renderer.setMood('night');
     G.wave = enemies.beginWave(G.night, { x: CONFIG.ember.x, z: CONFIG.ember.z });
     ui.setPhase('night', 'Night ' + (G.night + 1) + ' / 7', 'Night');
+    // the night's own name, so a shrunken screenshot still says which night it is
+    ui.setWaveInfo('Night ' + (G.night + 1) + ' / 7 · ' + G.wave.name, ' — ' + G.wave.threat);
+    G.bossSeen = false;
     audio.night();
     ui.showToast('Night ' + (G.night + 1), 1.8);
   }
@@ -223,7 +229,11 @@ export function createGame(canvas) {
   function defeat() {
     G.state = 'defeat';
     audio.defeat();
-    ui.showDefeat({ score: G.score, night: G.night, kills: G.kills });
+    const maxHp = buildings.ember.maxHp || 1;
+    ui.showDefeat({
+      score: G.score, night: G.night, kills: G.kills,
+      hp: Math.max(0, Math.round(buildings.ember.hp / maxHp * 100)),
+    });
   }
 
   // ------------------------- main loop -------------------------------------
@@ -341,6 +351,11 @@ export function createGame(canvas) {
     ui.setEmberHp(buildings.ember.hp);
     ui.setPlayerHp(player.state.hp);
     ui.setScore(G.score);
+    // Boss plate: appears the moment the night's signature boss walks, and
+    // tracks its health so the finale is legible even in a shrunken shot.
+    const boss = enemies.liveBoss();
+    if (boss) ui.showBoss(CONFIG.enemies.boss.name, boss.hp / boss.maxHp * 100);
+    else ui.hideBoss();
     document.getElementById('objective').textContent=G.phase==='day'
       ? `FORTIFY · Dusk in ${Math.ceil(Math.max(0,G.phaseT))}s · Survive 7 nights`
       : `DEFEND · ${enemies.list.filter(e=>!e.dead).length} foes · ${G.wave?.remaining||0} incoming`;
@@ -388,6 +403,8 @@ export function createGame(canvas) {
   }
 
   function onTowerFire(tower, target) {
+    renderer.muzzleFlash(tower.x, tower.z);
+    renderer.tracer({ x: tower.x, z: tower.z }, { x: target.x, z: target.z });
     renderer.spawnProjectile({ x: tower.x, z: tower.z }, { x: target.x, z: target.z }, CONFIG.buildings.tower.projectileSpeed);
     audio.towerShoot();
   }
@@ -459,6 +476,12 @@ export function createGame(canvas) {
     forceLose() { buildings.damageEmber(buildings.ember.maxHp); defeat(); },
     spawn(kind, x, z) { return enemies.spawn(kind, x, z); },
     give(k, v) { addResource(k, v); },
+    // stage one combat effect for the screenshot harness — the same calls real
+    // play makes, so the frame is a true render of the game's own code
+    fx(kind, ...a) {
+      const f = renderer[kind];
+      return typeof f === 'function' ? f.apply(renderer, a) : undefined;
+    },
   };
 
   return { start, begin, restart, get game() { return G; }, debug };

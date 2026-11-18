@@ -1,6 +1,7 @@
 // shots.mjs — capture real screenshots of LAST DAWN via the Chrome DevTools
 // Protocol (no npm deps: headless Chrome + SwiftShader for headless WebGL).
-// Four shots: 1 title (cover), 2 day gathering, 3 night combat, 4 victory.
+// Four shots, and the COVER is the first by name, so the action frame leads:
+// 1 last stand (night combat, the cover), 2 forge (day play), 3 title, 4 victory.
 
 import { spawn, execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, rmSync, existsSync, statSync, renameSync } from 'node:fs';
@@ -114,8 +115,9 @@ while True:
 
 const report = {};
 
-// ---- 1. title screen (cover) ----
-report.title = shrink(await shot('1-title'));
+// ---- 1 by name is the cover: the last stand, staged at the end of this file.
+//         Captured first here so the title screen is still up. ----
+report.title = shrink(await shot('3-title'));
 
 // ---- 2. play in progress: HUD, resource node, and the Forge (crafting) open ----
 await evaluate(`window.__lastDawn.begin(); true`);
@@ -146,41 +148,99 @@ await evaluate(`(() => {
   return !!(f && !f.hidden);
 })()`);
 await sleep(700);
-report.day = shrink(await shot('2-gathering-forge'));
+report.day = shrink(await shot('2-forge'));
 
-// ---- 3. night combat: defensive line, ember behind, dusk closing in ----
+// ---- 3. the last stand (THE COVER): night 7, the Dusk Tyrant walking into a
+//         crossfire of towers with the wall line and the Emberheart behind it ----
 await evaluate(`(() => { const f = document.getElementById('forge'); if (f) f.hidden = true; return true; })()`);
 await evaluate(`(() => {
   const D = window.__lastDawn.debug;
-  D.forceNight();
-  // defensive line north of the player
-  D.buildings.placeBuild('wall', 0, 4);
-  D.buildings.placeBuild('wall', 2.4, 3.4);
-  D.buildings.placeBuild('wall', -2.4, 3.4);
-  D.buildings.placeBuild('tower', 0, 6.2);
-  D.player.state.x = 0; D.player.state.z = 8.2;
-  D.renderer.cam.yaw = 0.0;
-  D.renderer.cam.dist = 16;
-  D.renderer.cam.pitch = 0.68;
-  // large dusk in the foreground (south, near camera), small far behind the ember
-  const fore = [
-    ['brute', 0, 13.5], ['crawler', -8, 12.5], ['crawler', 8, 12.5],
-    ['runner', -4, 13.5], ['runner', 4, 13.5], ['crawler', -6.5, 11], ['crawler', 6.5, 11],
-  ];
-  const back = [
-    ['crawler', -4, -7], ['crawler', 4, -7], ['wisp', 0, -5.5], ['runner', -2.5, -8], ['runner', 2.5, -8],
-  ];
-  fore.forEach(([k, x, z]) => D.spawn(k, x, z));
-  back.forEach(([k, x, z]) => D.spawn(k, x, z));
-  D.ui.setPhase('night', 'Night 3 / 7', 'Night');
-  D.ui.setScore(14230);
+  D.G.night = 6;
+  D.forceNight();          // night 7 of 7 — the Dusk Tyrant's night
+  D.G.wave = null;         // stop the spawner so the composition holds still
+  // the wall line and the two towers that flank the Tyrant's approach
+  D.buildings.placeBuild('wall', -6.2, 4.3);
+  D.buildings.placeBuild('wall', -3.1, 4.05);
+  D.buildings.placeBuild('wall', 0, 3.95);
+  D.buildings.placeBuild('wall', 3.1, 4.05);
+  D.buildings.placeBuild('wall', 6.2, 4.3);
+  D.buildings.placeBuild('tower', -5.6, 6.8);
+  D.buildings.placeBuild('tower', 5.6, 6.8);
+  D.buildings.placeBuild('beacon', -8.4, 8.4);
+  D.player.setPosition(0, 9.8);
+  D.renderer.cam.yaw = 0.14;
+  D.renderer.cam.dist = 15.5;
+  D.renderer.cam.pitch = 0.44;
+  D.G.score = 14230;
+  return { player: { x: D.player.state.x, z: D.player.state.z }, built: D.buildings.structures.length };
+})()`).then((r) => { report.stage = r; });
+await sleep(1000);   // let the camera settle before anything that decays is staged
+
+// the Tyrant and its strains, mid-charge, some already bloodied
+await evaluate(`(() => {
+  const D = window.__lastDawn.debug;
+  const boss = D.spawn('boss', 0, 12.4);
+  boss.hp = boss.maxHp * 0.58;
+  [['brute', -4.8, 11.9], ['brute', 4.8, 11.9], ['crawler', -8.0, 12.9],
+   ['crawler', 8.0, 12.9], ['runner', -2.5, 13.8], ['runner', 2.5, 13.8],
+   ['wisp', -3.3, 9.9], ['wisp', 3.3, 9.9]]
+    .forEach(([k, x, z], i) => { const e = D.spawn(k, x, z); if (i < 4) e.hp = e.maxHp * 0.6; });
+  return { live: D.enemies.list.length };
+})()`).then((r) => { report.dusk = r; });
+await sleep(200);
+
+// the volley: the towers' own shots, in flight, before the frame is held
+await evaluate(`(() => {
+  const D = window.__lastDawn.debug, R = D.renderer;
+  R.spawnProjectile({ x: -5.6, z: 6.8 }, { x: 0, z: 12.4 }, 13);
+  R.spawnProjectile({ x: 5.6, z: 6.8 }, { x: 0, z: 12.4 }, 13);
+  R.spawnProjectile({ x: -5.6, z: 6.8 }, { x: -4.8, z: 11.9 }, 13);
+  R.spawnProjectile({ x: 5.6, z: 6.8 }, { x: 4.8, z: 11.9 }, 13);
   return true;
 })()`);
-await sleep(800);
-report.night = shrink(await shot('3-night'));
+await sleep(320);   // let the shots get out of the towers and into the air
+
+// the impacts first, so the sparks have time to spread before the frame is held
+await evaluate(`(() => {
+  const D = window.__lastDawn.debug, F = (...a) => D.fx(...a);
+  F('burst', -4.8, 2.4, 11.9, 16, 0, 6, 3);
+  F('burst', 4.8, 2.4, 11.9, 16, 0, 6, 3);
+  F('burst', 0, 2.6, 12.4, 20, 1, 7, 5);
+  F('burst', -8.0, 2.2, 12.9, 12, 4, 5, 3);
+  F('burst', 2.5, 2.2, 13.8, 12, 3, 5, 4);
+  return true;
+})()`);
+await sleep(220);   // sparks fly out to a spread, still bright
+
+await evaluate(`(() => {
+  const D = window.__lastDawn.debug, R = D.renderer, F = (...a) => D.fx(...a);
+  R.setFxHold(true);   // hold: the flashes, the lines and the numbers stay put for the still
+  F('muzzleFlash', -5.6, 6.8);
+  F('muzzleFlash', 5.6, 6.8);
+  F('tracer', { x: -5.6, z: 6.8 }, { x: 0, z: 12.4 });
+  F('tracer', { x: 5.6, z: 6.8 }, { x: 0, z: 12.4 });
+  F('tracer', { x: -5.6, z: 6.8 }, { x: -4.8, z: 11.9 });
+  F('tracer', { x: 5.6, z: 6.8 }, { x: 4.8, z: 11.9 });
+  F('tracer', { x: -5.6, z: 6.8 }, { x: -8.0, z: 12.9 });
+  F('tracer', { x: 5.6, z: 6.8 }, { x: 2.5, z: 13.8 });
+  F('impact', 0, 3.4, 12.4, 0xffb066);
+  F('impact', -4.8, 2.9, 11.9);
+  F('impact', 4.8, 2.9, 11.9);
+  F('impact', -8.0, 2.6, 12.9);
+  F('impact', 2.5, 2.6, 13.8);
+  F('popup', 0, 4.3, 12.4, '34', '#ff9a5a');
+  F('popup', -4.8, 3.4, 11.9, '16', '#ffd36a');
+  F('popup', 4.8, 3.4, 11.9, '16', '#ffd36a');
+  F('popup', -8.0, 3.0, 12.9, '10', '#ffd36a');
+  F('popup', 2.5, 3.4, 13.8, '15', '#ffd36a');
+  return { fx: R.fx.length, popups: R.popups.length, projectiles: R.projectiles.length };
+})()`).then((r) => { report.volley = r; });
+await sleep(500);   // frozen, so this only lets the camera and textures settle
+report.cover = shrink(await shot('1-last-stand'));
+await evaluate(`window.__lastDawn.debug.renderer.setFxHold(false); true`);
 
 // ---- 4. victory screen ----
-await evaluate(`window.__lastDawn.debug.forceWin(); true`);
+await evaluate(`(() => { const D = window.__lastDawn.debug; D.G.kills = 84; D.G.score = 15330; D.forceWin(); return true; })()`);
 await sleep(600);
 report.victory = shrink(await shot('4-victory'));
 

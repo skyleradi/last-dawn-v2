@@ -1,24 +1,35 @@
 {
   "report": {
     "title": {
-      "file": "screenshots/1-title.png",
-      "size": 245333,
-      "shrunk": true
+      "file": "screenshots/3-title.jpg",
+      "size": 76360
     },
     "day": {
-      "file": "screenshots/2-gathering-forge.png",
-      "size": 303159,
-      "shrunk": true
+      "file": "screenshots/2-forge.jpg",
+      "size": 166931
     },
-    "night": {
-      "file": "screenshots/3-night.png",
-      "size": 355594,
-      "shrunk": true
+    "stage": {
+      "player": {
+        "x": 0,
+        "z": 9.8
+      },
+      "built": 8
+    },
+    "dusk": {
+      "live": 9
+    },
+    "volley": {
+      "fx": 26,
+      "popups": 5,
+      "projectiles": 4
+    },
+    "cover": {
+      "file": "screenshots/1-last-stand.jpg",
+      "size": 195483
     },
     "victory": {
-      "file": "screenshots/4-victory.png",
-      "size": 314024,
-      "shrunk": true
+      "file": "screenshots/4-victory.jpg",
+      "size": 71149
     }
   },
   "logs": []

@@ -80,17 +80,22 @@ export function createEnemies(scene, THREE) {
   }
 
   // A wave is { spawns, types[], interval }. Returns a live iterator object.
+  // A wave marked `boss: true` spends its LAST spawn on its signature boss, so
+  // the night's enemy count still matches CONFIG and the finale reads at a
+  // glance: one hulking crowned silhouette in a field of small ones.
   function beginWave(nightIndex, emberPos, onDone) {
     const w = waveFor(nightIndex);
     const rand = mulberry32(900 + nightIndex * 71);
     let spawned = 0, timer = 0;
     return {
-      name: w.name, threat: w.threat, composition: w.types.slice(),
+      name: w.name, threat: w.threat, composition: w.types.slice(), boss: !!w.boss,
       get remaining() { return w.spawns - spawned; },
       update(dt) {
         timer -= dt;
         if (spawned < w.spawns && timer <= 0) {
-          const kind = w.types[spawned % w.types.length];
+          const slot = spawned;
+          const isBossSlot = w.boss && slot === w.spawns - 1;
+          const kind = isBossSlot ? 'boss' : w.types[slot % w.types.length];
           const a = rand() * Math.PI * 2;
           const d = CONFIG.world.islandRadius - 1.6;
           spawn(kind, Math.cos(a) * d, Math.sin(a) * d, w.speed);
@@ -100,6 +105,12 @@ export function createEnemies(scene, THREE) {
         return spawned === w.spawns;
       },
     };
+  }
+
+  // The living boss of the night, if one is up — drives the HUD's boss plate.
+  function liveBoss() {
+    for (const e of list) if (!e.dead && e.kind === 'boss') return e;
+    return null;
   }
 
   function update(dt, emberPos, walls, towers, beacons, onEmberHit, onEnemyHurt, onEnemyDead, onProjectile) {
@@ -169,5 +180,6 @@ export function createEnemies(scene, THREE) {
     spawn,
     beginWave,
     update,
+    liveBoss,
   };
 }

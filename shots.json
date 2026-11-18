@@ -1,18 +1,18 @@
 [
   {
-    "name": "1-title.jpg",
-    "shot": "title",
-    "shows": "Title screen: name, premise, controls for keyboard/mouse and phone, and the Begin button (the start)."
+    "name": "1-last-stand.jpg",
+    "shot": "night",
+    "shows": "Play in progress, night 7 of 7: a wall-and-tower line mid-volley against the Dusk Tyrant, muzzle flashes, tracers and damage numbers over a field of brute, runner, crawler and wisp strains closing on the Emberheart, with the objective, five resources, score, build bar, boss plate and both health bars on screen (the fight the game is about). The cover."
   },
   {
-    "name": "2-gathering-forge.jpg",
+    "name": "2-forge.jpg",
     "shot": "day",
     "shows": "Play in progress, day 1 of 7: HUD with the seven-night objective, five resources and score, the build bar with costs, both health bars, and the Dawnkeeper's Forge open with its five recipes and tiers (the crafting loop)."
   },
   {
-    "name": "3-night.jpg",
-    "shot": "night",
-    "shows": "Play in progress, night: a wall/tower line holding the Emberheart while brute, runner, crawler and wisp waves close in from both sides (the fight the game is about)."
+    "name": "3-title.jpg",
+    "shot": "title",
+    "shows": "Title screen: name, premise, controls for keyboard/mouse and phone, and the Begin button (the start)."
   },
   {
     "name": "4-victory.jpg",

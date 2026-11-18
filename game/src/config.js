@@ -72,14 +72,16 @@ export const CONFIG = {
   },
 
   // Waves — one entry per night, in order. Count and mix scale up.
+  // `.name`, `.types`, `.spawns` and `.interval` are the contract the
+  // regression probe reads; the extra keys only drive presentation.
   waves: [
-    { name:'The First Murmur', threat:'A probing line of crawlers', spawns:8, types:['crawler'], interval:1.9, speed:1 },
+    { name:'The First Murmur', threat:'A probing line of crawlers — the easiest night.', spawns:8, types:['crawler'], interval:1.9, speed:1 },
     { name:'Red Sprint', threat:'Runners flank from the shore', spawns:11, types:['crawler','crawler','runner'], interval:1.7, speed:1.05 },
     { name:'Pack Tide', threat:'Fast packs overwhelm isolated walls', spawns:14, types:['crawler','runner','runner'], interval:1.5, speed:1.1 },
     { name:'Stone March', threat:'Brutes break the outer ring', spawns:16, types:['crawler','runner','brute'], interval:1.3, speed:1.08 },
     { name:'Wispfall', threat:'Flying wisps ignore every wall', spawns:19, types:['runner','brute','wisp','crawler'], interval:1.1, speed:1.12 },
     { name:'Black Surge', threat:'Heavy bodies arrive in tight waves', spawns:22, types:['runner','brute','wisp','brute'], interval:.95, speed:1.18 },
-    { name:'Last Dawn', threat:'Every strain converges on the Emberheart', spawns:26, types:['brute','wisp','runner','crawler'], interval:.8, speed:1.22 },
+    { name:'Last Dawn', threat:'Every strain converges — and the Dusk Tyrant walks.', spawns:26, types:['brute','wisp','runner','crawler'], interval:.8, speed:1.22, boss:true },
   ],
 
   // Enemy types (speed is world units / second)
@@ -88,6 +90,10 @@ export const CONFIG = {
     runner:  { hp: 26,  speed: 4.4, damage: 6,  radius: 0.45, touchDps: 7,  score: 15, color: 0x8a4a6a },
     brute:   { hp: 120, speed: 1.7, damage: 16, radius: 0.95, touchDps: 14, score: 30, color: 0x4a4468 },
     wisp:    { hp: 22,  speed: 3.2, damage: 9,  radius: 0.5,  touchDps: 10, score: 25, color: 0x9a74cc, fly: true },
+    // Night 7's signature silhouette: twice the bulk, a crown of horns and a
+    // burning core. Spawned once, on the final spawn of the final wave.
+    boss:    { hp: 360, speed: 1.28, damage: 18, radius: 1.5, touchDps: 15, score: 500, color: 0x352a55,
+               boss: true, name: 'The Dusk Tyrant' },
   },
 
   scoring: {
