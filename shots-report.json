@@ -6,18 +6,18 @@
       "shrunk": true
     },
     "day": {
-      "file": "screenshots/2-gathering.png",
-      "size": 367262,
+      "file": "screenshots/2-gathering-forge.png",
+      "size": 303159,
       "shrunk": true
     },
     "night": {
       "file": "screenshots/3-night.png",
-      "size": 361153,
+      "size": 355594,
       "shrunk": true
     },
     "victory": {
       "file": "screenshots/4-victory.png",
-      "size": 314254,
+      "size": 314024,
       "shrunk": true
     }
   },

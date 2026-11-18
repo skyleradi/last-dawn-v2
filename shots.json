@@ -1,5 +1,22 @@
 [
-  { "name": "1-start.jpg", "query": "?shot=start&seed=1" },
-  { "name": "2-play.jpg", "query": "?shot=play&seed=1" },
-  { "name": "3-end.jpg", "query": "?shot=end&seed=1" }
+  {
+    "name": "1-title.jpg",
+    "shot": "title",
+    "shows": "Title screen: name, premise, controls for keyboard/mouse and phone, and the Begin button (the start)."
+  },
+  {
+    "name": "2-gathering-forge.jpg",
+    "shot": "day",
+    "shows": "Play in progress, day 1 of 7: HUD with the seven-night objective, five resources and score, the build bar with costs, both health bars, and the Dawnkeeper's Forge open with its five recipes and tiers (the crafting loop)."
+  },
+  {
+    "name": "3-night.jpg",
+    "shot": "night",
+    "shows": "Play in progress, night: a wall/tower line holding the Emberheart while brute, runner, crawler and wisp waves close in from both sides (the fight the game is about)."
+  },
+  {
+    "name": "4-victory.jpg",
+    "shot": "victory",
+    "shows": "Results screen: the win, the score, nights survived, kills and ember remaining, with Play Again (the restart)."
+  }
 ]

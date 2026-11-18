@@ -93,18 +93,23 @@ async function shot(name) {
 }
 
 function shrink(file, cap = 245760) {
-  const { size } = statSync(file);
-  if (size <= cap) return { file, size, shrunk: false };
-  const tmp = `${file}.tmp.png`;
+  // PNG renders are over the maker's 256 KiB cap, so every shot is re-encoded as
+  // a JPEG (same pixels, same size) at the highest quality that fits the cap.
+  const jpg = file.replace(/\.png$/, '.jpg');
   execFileSync('python3', ['-c', `
-import sys
+import os, sys
 from PIL import Image
 src, dst = sys.argv[1], sys.argv[2]
 im = Image.open(src).convert('RGB')
-im.quantize(colors=256, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG).save(dst, optimize=True)
-`, file, tmp]);
-  renameSync(tmp, file);
-  return { file, size: statSync(file).size, shrunk: true };
+q = 88
+while True:
+    im.save(dst, quality=q, optimize=True, subsampling=1)
+    if os.path.getsize(dst) <= ${cap} or q <= 60:
+        break
+    q -= 4
+`, file, jpg]);
+  rmSync(file, { force: true });
+  return { file: jpg, size: statSync(jpg).size };
 }
 
 const report = {};
@@ -112,12 +117,19 @@ const report = {};
 // ---- 1. title screen (cover) ----
 report.title = shrink(await shot('1-title'));
 
-// ---- 2. start game, frame the player near the ember among trees ----
+// ---- 2. play in progress: HUD, resource node, and the Forge (crafting) open ----
 await evaluate(`window.__lastDawn.begin(); true`);
 await sleep(1200);
 await evaluate(`(() => {
   const D = window.__lastDawn.debug;
-  D.player.state.x = 2.5; D.player.state.z = 4.5;
+  // stand the Dawnkeeper beside the nearest resource node so the gather prompt shows
+  let best = null, bd = Infinity;
+  for (const n of (D.nodes || [])) {
+    const dx = n.x - 2.5, dz = n.z - 4.5, d = dx * dx + dz * dz;
+    if (d < bd) { bd = d; best = n; }
+  }
+  if (best) { D.player.state.x = best.x + 1.5; D.player.state.z = best.z + 1.5; }
+  else { D.player.state.x = 2.5; D.player.state.z = 4.5; }
   D.renderer.cam.yaw = Math.PI * 0.55;
   D.renderer.cam.dist = 15;
   D.renderer.cam.pitch = 0.72;
@@ -125,10 +137,19 @@ await evaluate(`(() => {
   D.ui.setResources(D.G.resources.wood, D.G.resources.stone, D.G.resources.essence);
   return true;
 })()`);
-await sleep(1000);
-report.day = shrink(await shot('2-gathering'));
+await sleep(900);
+// open the Dawnkeeper's Forge so the crafting loop is visible in the shot
+await evaluate(`(() => {
+  const f = document.getElementById('forge');
+  const b = document.getElementById('forgebtn');
+  if (f && f.hidden && b) b.click();
+  return !!(f && !f.hidden);
+})()`);
+await sleep(700);
+report.day = shrink(await shot('2-gathering-forge'));
 
 // ---- 3. night combat: defensive line, ember behind, dusk closing in ----
+await evaluate(`(() => { const f = document.getElementById('forge'); if (f) f.hidden = true; return true; })()`);
 await evaluate(`(() => {
   const D = window.__lastDawn.debug;
   D.forceNight();
