@@ -2,22 +2,22 @@
   "report": {
     "title": {
       "file": "screenshots/1-title.png",
-      "size": 154936,
+      "size": 245333,
       "shrunk": true
     },
     "day": {
       "file": "screenshots/2-gathering.png",
-      "size": 79756,
+      "size": 367262,
       "shrunk": true
     },
     "night": {
       "file": "screenshots/3-night.png",
-      "size": 84111,
+      "size": 361153,
       "shrunk": true
     },
     "victory": {
       "file": "screenshots/4-victory.png",
-      "size": 162371,
+      "size": 314254,
       "shrunk": true
     }
   },
